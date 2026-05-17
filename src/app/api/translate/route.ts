@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { getGeminiModel } from "@/lib/gemini/client";
 import { buildStreamingTranslationPrompt } from "@/lib/gemini/prompt";
-import { isChineseLanguage } from "@/lib/speech/languages";
+import { createTranslationStream } from "@/lib/translate/create-translation-stream";
+import { isQuotaOrRateLimitError } from "@/lib/translate/providers/is-quota-error";
+import { GroqTranslationError } from "@/lib/translate/providers/groq-stream";
+import {
+  getChineseVariant,
+  isChineseLanguage,
+} from "@/lib/speech/languages";
 import type { TranslateErrorResponse, TranslateRequestBody } from "@/types/translate";
 
 export const runtime = "nodejs";
@@ -64,12 +69,7 @@ export async function POST(request: NextRequest) {
 
     const { text, sourceLanguage, targetLanguage, targetLanguageCode } = parsed;
     const expectsChineseJson = isChineseLanguage(targetLanguageCode);
-    const chineseVariant =
-      targetLanguageCode === "zh-CN"
-        ? "simplified"
-        : targetLanguageCode === "zh-TW"
-          ? "traditional"
-          : undefined;
+    const chineseVariant = getChineseVariant(targetLanguageCode);
 
     const systemInstruction = buildStreamingTranslationPrompt(
       sourceLanguage,
@@ -77,49 +77,13 @@ export async function POST(request: NextRequest) {
       chineseVariant ? { chineseVariant } : undefined,
     );
 
-    const model = getGeminiModel();
     const maxOutputTokens = expectsChineseJson ? 2048 : 1024;
 
-    const result = await model.generateContentStream({
+    const { stream, provider } = await createTranslationStream({
+      text,
       systemInstruction,
-      contents: [{ role: "user", parts: [{ text }] }],
-      generationConfig: {
-        temperature: 0,
-        maxOutputTokens,
-        ...(expectsChineseJson ? { responseMimeType: "application/json" } : {}),
-      },
-    });
-
-    const encoder = new TextEncoder();
-
-    const stream = new ReadableStream<Uint8Array>({
-      async start(controller) {
-        try {
-          let streamed = "";
-
-          for await (const chunk of result.stream) {
-            const piece = chunk.text();
-
-            if (piece) {
-              streamed += piece;
-              controller.enqueue(encoder.encode(piece));
-            }
-          }
-
-          if (!streamed.trim()) {
-            const response = await result.response;
-            const fullText = response.text();
-
-            if (fullText) {
-              controller.enqueue(encoder.encode(fullText));
-            }
-          }
-
-          controller.close();
-        } catch (error) {
-          controller.error(error);
-        }
-      },
+      maxOutputTokens,
+      expectsChineseJson,
     });
 
     return new Response(stream, {
@@ -128,6 +92,7 @@ export async function POST(request: NextRequest) {
         "Content-Type": "text/plain; charset=utf-8",
         "Cache-Control": "no-cache, no-transform",
         "X-Content-Type-Options": "nosniff",
+        "X-Translate-Provider": provider,
       },
     });
   } catch (error) {
@@ -136,12 +101,25 @@ export async function POST(request: NextRequest) {
     const message =
       error instanceof Error ? error.message : "Translation failed";
 
-    if (message.includes("GEMINI_API_KEY")) {
+    if (
+      message.includes("GEMINI_API_KEY") ||
+      message.includes("GROQ_API_KEY") ||
+      message.includes("No translation API configured")
+    ) {
       return jsonError("Server translation is not configured", 500);
     }
 
+    if (error instanceof GroqTranslationError && error.status === 429) {
+      return jsonError(
+        "Translation rate limit reached on all providers. Please wait and try again.",
+        429,
+      );
+    }
+
     const status =
-      message.includes("429") || message.toLowerCase().includes("quota")
+      isQuotaOrRateLimitError(error) ||
+      message.includes("429") ||
+      message.toLowerCase().includes("quota")
         ? 429
         : 502;
 

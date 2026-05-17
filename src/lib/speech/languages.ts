@@ -22,6 +22,7 @@ export const LANGUAGES: LanguageOption[] = [
     apiLanguageName: "Simplified Chinese (Mainland, zh-CN)",
     neuralVoice: "zh-CN-XiaoxiaoNeural",
     chineseVariant: "simplified",
+    romanizationLabel: "Pinyin",
   },
   {
     code: "zh-TW",
@@ -30,6 +31,16 @@ export const LANGUAGES: LanguageOption[] = [
     apiLanguageName: "Traditional Chinese (Taiwan, zh-TW)",
     neuralVoice: "zh-TW-HsiaoChenNeural",
     chineseVariant: "traditional",
+    romanizationLabel: "Pinyin",
+  },
+  {
+    code: "yue-HK",
+    label: "粵語 (廣東話)",
+    speechLocale: "yue-HK",
+    apiLanguageName: "Cantonese (Hong Kong, yue-HK)",
+    neuralVoice: "yue-HK-HiuGaaiNeural",
+    chineseVariant: "cantonese",
+    romanizationLabel: "Jyutping",
   },
 ];
 
@@ -38,9 +49,13 @@ export function getLanguageByCode(code: string): LanguageOption {
 }
 
 export function isChineseLanguage(code: string): boolean {
-  return code === "zh-CN" || code === "zh-TW";
+  return code === "zh-CN" || code === "zh-TW" || code === "yue-HK";
 }
 
 export function getChineseVariant(code: string): ChineseVariant | undefined {
   return getLanguageByCode(code).chineseVariant;
+}
+
+export function getRomanizationLabel(code: string): string | undefined {
+  return getLanguageByCode(code).romanizationLabel;
 }

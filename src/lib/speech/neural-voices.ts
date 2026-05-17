@@ -5,6 +5,7 @@ const LOCALE_VOICE_MAP: Record<string, string> = {
   "en-US": "en-US-JennyNeural",
   "zh-CN": "zh-CN-XiaoxiaoNeural",
   "zh-TW": "zh-TW-HsiaoChenNeural",
+  "yue-HK": "yue-HK-HiuGaaiNeural",
 };
 
 export function getNeuralVoice(localeOrVoice: string): string {

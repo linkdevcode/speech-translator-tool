@@ -6,7 +6,10 @@ import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { useToast } from "@/hooks/useToast";
 import { useTranslationPipeline } from "@/hooks/useTranslationPipeline";
 import { isSpeechRecognitionSupported } from "@/lib/speech/get-speech-recognition";
-import { getLanguageByCode } from "@/lib/speech/languages";
+import {
+  getLanguageByCode,
+  getRomanizationLabel,
+} from "@/lib/speech/languages";
 import { ChatTranscript } from "./ChatTranscript";
 import { LanguageBar } from "./LanguageBar";
 import { MicButton } from "./MicButton";
@@ -167,6 +170,7 @@ export function TranslatorApp() {
           sourceLabel={source.label}
           targetLabel={target.label}
           neuralVoice={target.neuralVoice}
+          romanizationLabel={getRomanizationLabel(target.code)}
           onPlaybackError={(message) => showToast(message, "error")}
           className="min-h-0 flex-1"
         />

@@ -11,6 +11,7 @@ interface ChatTranscriptProps {
   sourceLabel: string;
   targetLabel: string;
   neuralVoice: string;
+  romanizationLabel?: string;
   onPlaybackError?: (message: string) => void;
   className?: string;
 }
@@ -20,6 +21,7 @@ export function ChatTranscript({
   sourceLabel,
   targetLabel,
   neuralVoice,
+  romanizationLabel,
   onPlaybackError,
   className = "",
 }: ChatTranscriptProps) {
@@ -91,6 +93,7 @@ export function ChatTranscript({
               sourceLabel={sourceLabel}
               targetLabel={targetLabel}
               neuralVoice={neuralVoice}
+              romanizationLabel={romanizationLabel}
               onPlaybackError={onPlaybackError}
             />
           ))}
@@ -106,12 +109,14 @@ function ChatTurn({
   sourceLabel,
   targetLabel,
   neuralVoice,
+  romanizationLabel,
   onPlaybackError,
 }: {
   entry: ConversationEntry;
   sourceLabel: string;
   targetLabel: string;
   neuralVoice: string;
+  romanizationLabel?: string;
   onPlaybackError?: (message: string) => void;
 }) {
   return (
@@ -124,6 +129,7 @@ function ChatTurn({
           text={entry.translatedText}
           pinyin={entry.pinyin}
           isStreaming
+          romanizationLabel={romanizationLabel}
         />
       ) : null}
 
@@ -132,6 +138,7 @@ function ChatTurn({
           label={targetLabel}
           text={entry.translatedText}
           pinyin={entry.pinyin}
+          romanizationLabel={romanizationLabel}
           neuralVoice={neuralVoice}
           onPlaybackError={onPlaybackError}
         />
@@ -165,6 +172,7 @@ function TargetBubble({
   label,
   text,
   pinyin,
+  romanizationLabel,
   neuralVoice,
   onPlaybackError,
   isLoading = false,
@@ -173,6 +181,7 @@ function TargetBubble({
   label: string;
   text?: string;
   pinyin?: string;
+  romanizationLabel?: string;
   neuralVoice?: string;
   onPlaybackError?: (message: string) => void;
   isLoading?: boolean;
@@ -214,13 +223,18 @@ function TargetBubble({
         ) : null}
 
         {pinyin ? (
-          <p
-            className={`mt-1.5 border-t border-violet-100/80 pt-1.5 text-xs font-normal tracking-wide ${
+          <div
+            className={`mt-1.5 border-t border-violet-100/80 pt-1.5 ${
               isStreaming ? "text-violet-600/70" : "text-violet-600/90"
             }`}
           >
-            {pinyin}
-          </p>
+            {romanizationLabel ? (
+              <p className="text-[10px] font-medium uppercase tracking-wide opacity-80">
+                {romanizationLabel}
+              </p>
+            ) : null}
+            <p className="text-xs font-normal tracking-wide">{pinyin}</p>
+          </div>
         ) : null}
       </div>
     </div>

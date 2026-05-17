@@ -125,7 +125,27 @@ function extractJsonObject(raw: string): string | null {
 
 function looksLikeChineseJsonPayload(text: string): boolean {
   const trimmed = text.trim();
-  return trimmed.startsWith("{") && trimmed.includes('"translation"');
+  return (
+    trimmed.startsWith("{") &&
+    (trimmed.includes('"translation"') ||
+      trimmed.includes('"pinyin"') ||
+      trimmed.includes('"jyutping"'))
+  );
+}
+
+function extractRomanizationLoose(raw: string): string {
+  return (
+    extractJsonStringFieldLoose(raw, "pinyin") ||
+    extractJsonStringFieldLoose(raw, "jyutping")
+  );
+}
+
+function pickRomanization(parsed: {
+  pinyin?: string;
+  jyutping?: string;
+}): string | undefined {
+  const value = parsed.pinyin?.trim() || parsed.jyutping?.trim();
+  return value || undefined;
 }
 
 function parseChineseJsonPayload(raw: string): ParsedTranslation | null {
@@ -136,6 +156,7 @@ function parseChineseJsonPayload(raw: string): ParsedTranslation | null {
     const parsed = JSON.parse(jsonBlob) as {
       translation?: string;
       pinyin?: string;
+      jyutping?: string;
     };
 
     const translation = parsed.translation?.trim();
@@ -146,11 +167,11 @@ function parseChineseJsonPayload(raw: string): ParsedTranslation | null {
 
     return {
       translation,
-      pinyin: parsed.pinyin?.trim() || undefined,
+      pinyin: pickRomanization(parsed),
     };
   } catch {
     const translation = extractJsonStringFieldLoose(cleaned, "translation");
-    const pinyin = extractJsonStringFieldLoose(cleaned, "pinyin");
+    const romanization = extractRomanizationLoose(cleaned);
 
     if (!translation) {
       return null;
@@ -158,7 +179,7 @@ function parseChineseJsonPayload(raw: string): ParsedTranslation | null {
 
     return {
       translation,
-      ...(pinyin ? { pinyin } : {}),
+      ...(romanization ? { pinyin: romanization } : {}),
     };
   }
 }
@@ -193,19 +214,19 @@ export function parseTranslationResponse(
 
   if (looksLikeChineseJsonPayload(cleaned)) {
     const translation = extractJsonStringFieldLoose(cleaned, "translation");
-    const pinyin = extractJsonStringFieldLoose(cleaned, "pinyin");
+    const romanization = extractRomanizationLoose(cleaned);
 
     if (translation) {
       return {
         translation,
-        ...(pinyin ? { pinyin } : {}),
+        ...(romanization ? { pinyin: romanization } : {}),
       };
     }
   }
 
   const plain = cleaned
     .replace(/^\s*\{[\s\S]*?"translation"\s*:\s*"/, "")
-    .replace(/"\s*,\s*"pinyin"[\s\S]*$/, "")
+    .replace(/"\s*,\s*"(?:pinyin|jyutping)"[\s\S]*$/, "")
     .replace(/"\s*\}\s*$/, "")
     .trim();
 

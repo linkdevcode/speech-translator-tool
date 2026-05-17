@@ -38,7 +38,9 @@ export function extractStreamingDisplay(
   }
 
   const translation = extractJsonStringFieldLoose(accumulated, "translation");
-  const pinyin = extractJsonStringFieldLoose(accumulated, "pinyin");
+  const pinyin =
+    extractJsonStringFieldLoose(accumulated, "pinyin") ||
+    extractJsonStringFieldLoose(accumulated, "jyutping");
 
   if (translation) {
     return {
