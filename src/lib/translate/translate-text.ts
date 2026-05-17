@@ -110,9 +110,9 @@ export async function translateText(
             expectsChineseJson,
           );
 
-          if (display.translation || display.pinyin) {
+          if (display.translation.trim() || display.pinyin) {
             onStreamUpdate?.({
-              translation: display.translation,
+              translation: display.translation.trim(),
               pinyin: display.pinyin,
             });
           }

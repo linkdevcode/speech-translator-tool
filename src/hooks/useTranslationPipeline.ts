@@ -114,8 +114,14 @@ export function useTranslationPipeline(
           return;
         }
 
+        const translation = result.translation.trim();
+
+        if (!translation) {
+          throw new Error("Empty translation received");
+        }
+
         updateEntry(entryId, {
-          translatedText: result.translation,
+          translatedText: translation,
           pinyin: result.pinyin,
           status: "complete",
         });
@@ -123,7 +129,7 @@ export function useTranslationPipeline(
         setPipelineState("speaking");
 
         try {
-          await playNeuralTts(result.translation, neuralVoice);
+          await playNeuralTts(translation, neuralVoice);
         } catch (error) {
           const message =
             error instanceof Error

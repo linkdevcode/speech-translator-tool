@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getSpeechRecognitionConstructor } from "@/lib/speech/get-speech-recognition";
 import { joinTranscriptParts } from "@/lib/speech/join-transcript";
+import { collapseTranscriptRepetition } from "@/lib/speech/merge-transcript";
 import { normalizeSpeechText } from "@/lib/speech/normalize-transcript";
 import { cancelNeuralSpeech } from "@/lib/speech/play-neural-tts";
 import { unlockIosAudioPlayback } from "@/lib/speech/unlock-ios-audio";
@@ -32,28 +33,19 @@ export interface UseSpeechRecognitionReturn {
   clearTranscript: () => void;
 }
 
-function buildDisplayTranscripts(event: SpeechRecognitionEvent): {
-  final: string;
-  interim: string;
-} {
-  let final = "";
+/** Current non-final text in this recognition pass (replaces prior interim). */
+function buildCurrentInterimSnapshot(event: SpeechRecognitionEvent): string {
   let interim = "";
 
   for (let i = 0; i < event.results.length; i++) {
     const result = event.results[i];
-    const transcript = result[0]?.transcript ?? "";
 
-    if (result.isFinal) {
-      final += transcript;
-    } else {
-      interim += transcript;
+    if (!result.isFinal) {
+      interim += result[0]?.transcript ?? "";
     }
   }
 
-  return {
-    final: normalizeSpeechText(final),
-    interim: interim.trim(),
-  };
+  return interim.trim();
 }
 
 export function useSpeechRecognition(
@@ -128,7 +120,9 @@ export function useSpeechRecognition(
     clearDebounce();
     mergePendingInterimIntoSession();
 
-    const fullSession = sessionAccumulatedRef.current;
+    const fullSession = collapseTranscriptRepetition(
+      sessionAccumulatedRef.current,
+    );
     sessionAccumulatedRef.current = "";
     resetLiveTranscript();
 
@@ -225,10 +219,10 @@ export function useSpeechRecognition(
           }
         }
 
-        const { interim: displayInterim } = buildDisplayTranscripts(event);
+        const interimSnapshot = buildCurrentInterimSnapshot(event);
 
-        if (displayInterim) {
-          pendingInterimRef.current = displayInterim;
+        if (interimSnapshot) {
+          pendingInterimRef.current = interimSnapshot;
           updateLiveDisplay();
           scheduleInterimMerge();
         } else {
