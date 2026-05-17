@@ -4,7 +4,7 @@ const CHINESE_SCRIPT: Record<ChineseVariant, string> = {
   simplified: "Simplified zh-CN. Mainland vocab.",
   traditional: "Traditional zh-TW. Taiwan vocab.",
   cantonese:
-    "Cantonese (Hong Kong yue-HK). Written Cantonese. Hong Kong vocabulary.",
+    "Cantonese (Hong Kong zh-HK). Written Cantonese. Hong Kong vocabulary.",
 };
 
 const CHINESE_JSON_SCHEMA: Record<ChineseVariant, string> = {

@@ -34,11 +34,11 @@ export const LANGUAGES: LanguageOption[] = [
     romanizationLabel: "Pinyin",
   },
   {
-    code: "yue-HK",
+    code: "zh-HK",
     label: "粵語 (廣東話)",
-    speechLocale: "yue-HK",
-    apiLanguageName: "Cantonese (Hong Kong, yue-HK)",
-    neuralVoice: "yue-HK-HiuGaaiNeural",
+    speechLocale: "zh-HK",
+    apiLanguageName: "Cantonese (Hong Kong, zh-HK)",
+    neuralVoice: "zh-HK-HiuGaaiNeural",
     chineseVariant: "cantonese",
     romanizationLabel: "Jyutping",
   },
@@ -49,7 +49,7 @@ export function getLanguageByCode(code: string): LanguageOption {
 }
 
 export function isChineseLanguage(code: string): boolean {
-  return code === "zh-CN" || code === "zh-TW" || code === "yue-HK";
+  return code === "zh-CN" || code === "zh-TW" || code === "zh-HK";
 }
 
 export function getChineseVariant(code: string): ChineseVariant | undefined {
