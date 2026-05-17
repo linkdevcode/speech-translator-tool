@@ -97,6 +97,17 @@ export function useTranslationPipeline(
               "warning",
             );
           },
+          onStreamUpdate: (display) => {
+            if (requestId !== requestIdRef.current) {
+              return;
+            }
+
+            updateEntry(entryId, {
+              translatedText: display.translation,
+              pinyin: display.pinyin,
+              status: "translating",
+            });
+          },
         });
 
         if (requestId !== requestIdRef.current) {

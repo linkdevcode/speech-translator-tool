@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getGeminiModel } from "@/lib/gemini/client";
-import { parseTranslationResponse } from "@/lib/gemini/parse-translation";
-import { buildTranslationSystemPrompt } from "@/lib/gemini/prompt";
+import { buildStreamingTranslationPrompt } from "@/lib/gemini/prompt";
 import { isChineseLanguage } from "@/lib/speech/languages";
-import type {
-  TranslateErrorResponse,
-  TranslateRequestBody,
-  TranslateSuccessResponse,
-} from "@/types/translate";
+import type { TranslateErrorResponse, TranslateRequestBody } from "@/types/translate";
+
+export const runtime = "nodejs";
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
@@ -74,38 +71,50 @@ export async function POST(request: NextRequest) {
           ? "traditional"
           : undefined;
 
-    const systemInstruction = buildTranslationSystemPrompt(
+    const systemInstruction = buildStreamingTranslationPrompt(
       sourceLanguage,
       targetLanguage,
       chineseVariant ? { chineseVariant } : undefined,
     );
 
     const model = getGeminiModel();
-    const result = await model.generateContent({
+    const result = await model.generateContentStream({
       systemInstruction,
       contents: [{ role: "user", parts: [{ text }] }],
       generationConfig: {
-        temperature: 0.3,
+        temperature: 0,
         maxOutputTokens: 1024,
         ...(expectsChineseJson ? { responseMimeType: "application/json" } : {}),
       },
     });
 
-    const raw = result.response.text()?.trim();
+    const encoder = new TextEncoder();
 
-    if (!raw) {
-      return jsonError("Empty translation from model", 502);
-    }
+    const stream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        try {
+          for await (const chunk of result.stream) {
+            const piece = chunk.text();
 
-    const parsedTranslation = parseTranslationResponse(raw, expectsChineseJson);
+            if (piece) {
+              controller.enqueue(encoder.encode(piece));
+            }
+          }
 
-    if (!parsedTranslation.translation) {
-      return jsonError("Empty translation from model", 502);
-    }
+          controller.close();
+        } catch (error) {
+          controller.error(error);
+        }
+      },
+    });
 
-    return NextResponse.json<TranslateSuccessResponse>({
-      translation: parsedTranslation.translation,
-      ...(parsedTranslation.pinyin ? { pinyin: parsedTranslation.pinyin } : {}),
+    return new Response(stream, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        "X-Content-Type-Options": "nosniff",
+      },
     });
   } catch (error) {
     console.error("[/api/translate]", error);

@@ -1,3 +1,7 @@
+import {
+  preparePlaybackGain,
+  resumeAudioContext,
+} from "@/lib/speech/audio-gain";
 import { unlockIosSpeechSynthesis } from "@/lib/speech/unlock-ios-tts";
 
 /** Minimal silent MP3 — unlocks HTMLAudio playback on iOS after a user gesture. */
@@ -15,6 +19,7 @@ export function getSharedAudioElement(): HTMLAudioElement {
     sharedAudio = new Audio();
     sharedAudio.setAttribute("playsinline", "true");
     sharedAudio.preload = "auto";
+    sharedAudio.volume = 1;
   }
 
   return sharedAudio;
@@ -24,11 +29,14 @@ export function getSharedAudioElement(): HTMLAudioElement {
 export function unlockIosAudioPlayback(): void {
   try {
     const audio = getSharedAudioElement();
+    preparePlaybackGain(audio);
     audio.src = SILENT_MP3;
     audio.volume = 0.01;
     void audio.play().catch(() => {
       // best-effort unlock
     });
+
+    void resumeAudioContext();
   } catch {
     // ignore
   }

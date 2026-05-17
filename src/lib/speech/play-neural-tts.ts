@@ -1,4 +1,8 @@
-import { getSharedAudioElement, unlockIosAudioPlayback } from "@/lib/speech/unlock-ios-audio";
+import {
+  getSharedAudioElement,
+  unlockIosAudioPlayback,
+} from "@/lib/speech/unlock-ios-audio";
+import { preparePlaybackGain } from "@/lib/speech/audio-gain";
 
 let activeObjectUrl: string | null = null;
 
@@ -67,6 +71,8 @@ export async function playNeuralTts(
 
     const audio = getSharedAudioElement();
     audio.src = activeObjectUrl;
+    audio.volume = 1;
+    preparePlaybackGain(audio);
 
     await new Promise<void>((resolve, reject) => {
       const cleanup = () => {

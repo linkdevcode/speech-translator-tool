@@ -1,9 +1,11 @@
 import { RateLimitError } from "@/lib/errors/rate-limit-error";
-import type {
-  TranslateErrorResponse,
-  TranslateSuccessResponse,
-  TranslationResult,
-} from "@/types/translate";
+import { isChineseLanguage } from "@/lib/speech/languages";
+import type { TranslateErrorResponse, TranslationResult } from "@/types/translate";
+
+import {
+  extractStreamingDisplay,
+  parseStreamedTranslation,
+} from "./stream-display";
 
 const MAX_RETRIES = 3;
 const BASE_RETRY_MS = 2000;
@@ -18,6 +20,7 @@ export interface TranslateTextOptions {
   signal?: AbortSignal;
   targetLanguageCode: string;
   onRetry?: (attempt: number, delayMs: number) => void;
+  onStreamUpdate?: (display: TranslationResult) => void;
 }
 
 export async function translateText(
@@ -26,7 +29,8 @@ export async function translateText(
   targetLanguage: string,
   options: TranslateTextOptions,
 ): Promise<TranslationResult> {
-  const { signal, targetLanguageCode, onRetry } = options;
+  const { signal, targetLanguageCode, onRetry, onStreamUpdate } = options;
+  const expectsChineseJson = isChineseLanguage(targetLanguageCode);
 
   try {
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
@@ -82,23 +86,55 @@ export async function translateText(
         throw new Error(message);
       }
 
-      try {
-        const data = (await response.json()) as TranslateSuccessResponse;
+      const reader = response.body?.getReader();
 
-        if (!data.translation?.trim()) {
+      if (!reader) {
+        throw new Error("Streaming translation is not supported by this browser.");
+      }
+
+      const decoder = new TextDecoder();
+      let accumulated = "";
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+
+          if (done) {
+            break;
+          }
+
+          accumulated += decoder.decode(value, { stream: true });
+
+          const display = extractStreamingDisplay(
+            accumulated,
+            expectsChineseJson,
+          );
+
+          if (display.translation || display.pinyin) {
+            onStreamUpdate?.({
+              translation: display.translation,
+              pinyin: display.pinyin,
+            });
+          }
+        }
+
+        accumulated += decoder.decode();
+
+        const finalResult = parseStreamedTranslation(
+          accumulated,
+          expectsChineseJson,
+        );
+
+        if (!finalResult.translation?.trim()) {
           throw new Error("Empty translation received");
         }
 
         return {
-          translation: data.translation.trim(),
-          pinyin: data.pinyin?.trim() || undefined,
+          translation: finalResult.translation.trim(),
+          pinyin: finalResult.pinyin?.trim() || undefined,
         };
-      } catch (error) {
-        if (error instanceof Error) {
-          throw error;
-        }
-
-        throw new Error("Invalid translation response from server.");
+      } finally {
+        reader.releaseLock();
       }
     }
 

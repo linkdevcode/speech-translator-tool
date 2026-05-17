@@ -119,7 +119,12 @@ function ChatTurn({
       <SourceBubble label={sourceLabel} text={entry.sourceText} />
 
       {entry.status === "translating" ? (
-        <TargetBubble label={targetLabel} isLoading />
+        <TargetBubble
+          label={targetLabel}
+          text={entry.translatedText}
+          pinyin={entry.pinyin}
+          isStreaming
+        />
       ) : null}
 
       {entry.status === "complete" && entry.translatedText ? (
@@ -163,6 +168,7 @@ function TargetBubble({
   neuralVoice,
   onPlaybackError,
   isLoading = false,
+  isStreaming = false,
 }: {
   label: string;
   text?: string;
@@ -170,6 +176,7 @@ function TargetBubble({
   neuralVoice?: string;
   onPlaybackError?: (message: string) => void;
   isLoading?: boolean;
+  isStreaming?: boolean;
 }) {
   return (
     <div className="flex flex-col items-start gap-1">
@@ -177,7 +184,7 @@ function TargetBubble({
         <span className="text-[10px] font-medium uppercase tracking-wide text-violet-500">
           {label}
         </span>
-        {!isLoading && text && neuralVoice ? (
+        {!isLoading && !isStreaming && text && neuralVoice ? (
           <PlaySpeechButton
             text={text}
             voice={neuralVoice}
@@ -186,18 +193,35 @@ function TargetBubble({
         ) : null}
       </div>
       <div className="w-full max-w-[88%] rounded-2xl rounded-bl-md border border-violet-100 bg-violet-50 px-4 py-2.5 text-sm leading-relaxed text-violet-950 shadow-sm">
-        {isLoading ? (
+        {isStreaming && !text ? (
           <LoadingDots label="Translating…" size="sm" className="text-violet-600" />
-        ) : (
-          <>
-            <p className="font-semibold">{text}</p>
-            {pinyin ? (
-              <p className="mt-1.5 border-t border-violet-100/80 pt-1.5 text-xs font-normal tracking-wide text-violet-600/90">
-                {pinyin}
-              </p>
+        ) : null}
+
+        {text ? (
+          <p className="font-semibold">
+            {text}
+            {isStreaming ? (
+              <span
+                className="ml-0.5 inline-block h-4 w-0.5 animate-pulse bg-violet-500 align-middle"
+                aria-hidden
+              />
             ) : null}
-          </>
-        )}
+          </p>
+        ) : null}
+
+        {isLoading && !isStreaming ? (
+          <LoadingDots label="Translating…" size="sm" className="text-violet-600" />
+        ) : null}
+
+        {pinyin ? (
+          <p
+            className={`mt-1.5 border-t border-violet-100/80 pt-1.5 text-xs font-normal tracking-wide ${
+              isStreaming ? "text-violet-600/70" : "text-violet-600/90"
+            }`}
+          >
+            {pinyin}
+          </p>
+        ) : null}
       </div>
     </div>
   );
