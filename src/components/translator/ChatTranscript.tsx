@@ -3,12 +3,15 @@
 import { useEffect, useMemo, useRef } from "react";
 
 import { LoadingDots } from "@/components/ui/LoadingDots";
+import { PlaySpeechButton } from "@/components/translator/PlaySpeechButton";
 import type { ConversationEntry } from "@/types/translator";
 
 interface ChatTranscriptProps {
   entries: ConversationEntry[];
   sourceLabel: string;
   targetLabel: string;
+  neuralVoice: string;
+  onPlaybackError?: (message: string) => void;
   className?: string;
 }
 
@@ -16,6 +19,8 @@ export function ChatTranscript({
   entries,
   sourceLabel,
   targetLabel,
+  neuralVoice,
+  onPlaybackError,
   className = "",
 }: ChatTranscriptProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -85,6 +90,8 @@ export function ChatTranscript({
               entry={entry}
               sourceLabel={sourceLabel}
               targetLabel={targetLabel}
+              neuralVoice={neuralVoice}
+              onPlaybackError={onPlaybackError}
             />
           ))}
           <div ref={messagesEndRef} className="h-4 w-full shrink-0" aria-hidden />
@@ -98,10 +105,14 @@ function ChatTurn({
   entry,
   sourceLabel,
   targetLabel,
+  neuralVoice,
+  onPlaybackError,
 }: {
   entry: ConversationEntry;
   sourceLabel: string;
   targetLabel: string;
+  neuralVoice: string;
+  onPlaybackError?: (message: string) => void;
 }) {
   return (
     <article className="flex flex-col gap-2">
@@ -116,6 +127,8 @@ function ChatTurn({
           label={targetLabel}
           text={entry.translatedText}
           pinyin={entry.pinyin}
+          neuralVoice={neuralVoice}
+          onPlaybackError={onPlaybackError}
         />
       ) : null}
 
@@ -147,19 +160,32 @@ function TargetBubble({
   label,
   text,
   pinyin,
+  neuralVoice,
+  onPlaybackError,
   isLoading = false,
 }: {
   label: string;
   text?: string;
   pinyin?: string;
+  neuralVoice?: string;
+  onPlaybackError?: (message: string) => void;
   isLoading?: boolean;
 }) {
   return (
     <div className="flex flex-col items-start gap-1">
-      <span className="pl-1 text-[10px] font-medium uppercase tracking-wide text-violet-500">
-        {label}
-      </span>
-      <div className="max-w-[88%] rounded-2xl rounded-bl-md border border-violet-100 bg-violet-50 px-4 py-2.5 text-sm leading-relaxed text-violet-950 shadow-sm">
+      <div className="flex w-full max-w-[88%] items-center justify-between gap-2 pl-1 pr-0.5">
+        <span className="text-[10px] font-medium uppercase tracking-wide text-violet-500">
+          {label}
+        </span>
+        {!isLoading && text && neuralVoice ? (
+          <PlaySpeechButton
+            text={text}
+            voice={neuralVoice}
+            onError={onPlaybackError}
+          />
+        ) : null}
+      </div>
+      <div className="w-full max-w-[88%] rounded-2xl rounded-bl-md border border-violet-100 bg-violet-50 px-4 py-2.5 text-sm leading-relaxed text-violet-950 shadow-sm">
         {isLoading ? (
           <LoadingDots label="Translating…" size="sm" className="text-violet-600" />
         ) : (

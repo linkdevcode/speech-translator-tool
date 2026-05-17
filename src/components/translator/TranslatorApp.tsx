@@ -158,7 +158,7 @@ export function TranslatorApp() {
           <TranscriptPanel
             finalTranscript={finalTranscript}
             interimTranscript={interimTranscript}
-            placeholder={`Tap the mic and speak in ${source.label}…`}
+            placeholder={`Tap mic to start, speak in ${source.label}, tap again to translate…`}
           />
         </section>
 
@@ -166,6 +166,8 @@ export function TranslatorApp() {
           entries={history}
           sourceLabel={source.label}
           targetLabel={target.label}
+          neuralVoice={target.neuralVoice}
+          onPlaybackError={(message) => showToast(message, "error")}
           className="min-h-0 flex-1"
         />
 

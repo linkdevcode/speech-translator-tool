@@ -10,7 +10,7 @@ type DisplayStatus = AppListeningState | PipelineState;
 
 const STATUS_COPY: Record<DisplayStatus, string> = {
   idle: "Tap the mic to start",
-  listening: "Listening…",
+  listening: "Recording… Tap mic when done",
   processing: "Translating…",
   speaking: "Playing translation…",
 };
