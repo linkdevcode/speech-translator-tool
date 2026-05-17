@@ -6,7 +6,6 @@ import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { useToast } from "@/hooks/useToast";
 import { useTranslationPipeline } from "@/hooks/useTranslationPipeline";
 import { isSpeechRecognitionSupported } from "@/lib/speech/get-speech-recognition";
-import { ensureVoicesLoaded } from "@/lib/speech/ensure-voices";
 import { getLanguageByCode } from "@/lib/speech/languages";
 import { ChatTranscript } from "./ChatTranscript";
 import { LanguageBar } from "./LanguageBar";
@@ -43,16 +42,6 @@ export function TranslatorApp() {
     }
   }, [showToast]);
 
-  useEffect(() => {
-    void (async () => {
-      try {
-        await ensureVoicesLoaded();
-      } catch {
-        // voices may load later; non-fatal
-      }
-    })();
-  }, []);
-
   const {
     pipelineState,
     history,
@@ -60,9 +49,10 @@ export function TranslatorApp() {
     clearHistory,
     cancelSpeech,
   } = useTranslationPipeline({
-    sourceLanguage: source.label,
-    targetLanguage: target.label,
-    targetLocale: target.speechLocale,
+    sourceLanguage: source.apiLanguageName,
+    targetLanguage: target.apiLanguageName,
+    targetLanguageCode: target.code,
+    neuralVoice: target.neuralVoice,
     showToast,
   });
 
@@ -147,7 +137,15 @@ export function TranslatorApp() {
           </p>
         </header>
 
-        <LanguageBar source={source} target={target} onSwap={handleSwap} />
+        <LanguageBar
+        source={source}
+        target={target}
+        sourceCode={sourceCode}
+        targetCode={targetCode}
+        onSourceChange={setSourceCode}
+        onTargetChange={setTargetCode}
+        onSwap={handleSwap}
+      />
 
         <section className="flex flex-col gap-2">
           <PanelHeader

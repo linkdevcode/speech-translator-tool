@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getGeminiModel } from "@/lib/gemini/client";
+import { parseTranslationResponse } from "@/lib/gemini/parse-translation";
 import { buildTranslationSystemPrompt } from "@/lib/gemini/prompt";
+import { isChineseLanguage } from "@/lib/speech/languages";
 import type {
   TranslateErrorResponse,
   TranslateRequestBody,
@@ -17,12 +19,14 @@ function parseRequestBody(body: unknown): TranslateRequestBody | null {
     return null;
   }
 
-  const { text, sourceLanguage, targetLanguage } = body as TranslateRequestBody;
+  const { text, sourceLanguage, targetLanguage, targetLanguageCode } =
+    body as TranslateRequestBody;
 
   if (
     !isNonEmptyString(text) ||
     !isNonEmptyString(sourceLanguage) ||
-    !isNonEmptyString(targetLanguage)
+    !isNonEmptyString(targetLanguage) ||
+    !isNonEmptyString(targetLanguageCode)
   ) {
     return null;
   }
@@ -31,6 +35,7 @@ function parseRequestBody(body: unknown): TranslateRequestBody | null {
     text: text.trim(),
     sourceLanguage: sourceLanguage.trim(),
     targetLanguage: targetLanguage.trim(),
+    targetLanguageCode: targetLanguageCode.trim(),
   };
 }
 
@@ -55,15 +60,24 @@ export async function POST(request: NextRequest) {
 
     if (!parsed) {
       return jsonError(
-        "text, sourceLanguage, and targetLanguage are required non-empty strings",
+        "text, sourceLanguage, targetLanguage, and targetLanguageCode are required",
         400,
       );
     }
 
-    const { text, sourceLanguage, targetLanguage } = parsed;
+    const { text, sourceLanguage, targetLanguage, targetLanguageCode } = parsed;
+    const expectsChineseJson = isChineseLanguage(targetLanguageCode);
+    const chineseVariant =
+      targetLanguageCode === "zh-CN"
+        ? "simplified"
+        : targetLanguageCode === "zh-TW"
+          ? "traditional"
+          : undefined;
+
     const systemInstruction = buildTranslationSystemPrompt(
       sourceLanguage,
       targetLanguage,
+      chineseVariant ? { chineseVariant } : undefined,
     );
 
     const model = getGeminiModel();
@@ -73,16 +87,26 @@ export async function POST(request: NextRequest) {
       generationConfig: {
         temperature: 0.3,
         maxOutputTokens: 1024,
+        ...(expectsChineseJson ? { responseMimeType: "application/json" } : {}),
       },
     });
 
-    const translation = result.response.text()?.trim();
+    const raw = result.response.text()?.trim();
 
-    if (!translation) {
+    if (!raw) {
       return jsonError("Empty translation from model", 502);
     }
 
-    return NextResponse.json<TranslateSuccessResponse>({ translation });
+    const parsedTranslation = parseTranslationResponse(raw, expectsChineseJson);
+
+    if (!parsedTranslation.translation) {
+      return jsonError("Empty translation from model", 502);
+    }
+
+    return NextResponse.json<TranslateSuccessResponse>({
+      translation: parsedTranslation.translation,
+      ...(parsedTranslation.pinyin ? { pinyin: parsedTranslation.pinyin } : {}),
+    });
   } catch (error) {
     console.error("[/api/translate]", error);
 

@@ -6,6 +6,7 @@ export interface ConversationEntry {
   id: string;
   sourceText: string;
   translatedText: string;
+  pinyin?: string;
   createdAt: number;
   status: ConversationEntryStatus;
   errorMessage?: string;

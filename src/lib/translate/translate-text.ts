@@ -2,6 +2,7 @@ import { RateLimitError } from "@/lib/errors/rate-limit-error";
 import type {
   TranslateErrorResponse,
   TranslateSuccessResponse,
+  TranslationResult,
 } from "@/types/translate";
 
 const MAX_RETRIES = 3;
@@ -15,6 +16,7 @@ function delay(ms: number): Promise<void> {
 
 export interface TranslateTextOptions {
   signal?: AbortSignal;
+  targetLanguageCode: string;
   onRetry?: (attempt: number, delayMs: number) => void;
 }
 
@@ -22,9 +24,9 @@ export async function translateText(
   text: string,
   sourceLanguage: string,
   targetLanguage: string,
-  options: TranslateTextOptions = {},
-): Promise<string> {
-  const { signal, onRetry } = options;
+  options: TranslateTextOptions,
+): Promise<TranslationResult> {
+  const { signal, targetLanguageCode, onRetry } = options;
 
   try {
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
@@ -34,7 +36,12 @@ export async function translateText(
         response = await fetch("/api/translate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text, sourceLanguage, targetLanguage }),
+          body: JSON.stringify({
+            text,
+            sourceLanguage,
+            targetLanguage,
+            targetLanguageCode,
+          }),
           signal,
         });
       } catch (error) {
@@ -82,7 +89,10 @@ export async function translateText(
           throw new Error("Empty translation received");
         }
 
-        return data.translation.trim();
+        return {
+          translation: data.translation.trim(),
+          pinyin: data.pinyin?.trim() || undefined,
+        };
       } catch (error) {
         if (error instanceof Error) {
           throw error;

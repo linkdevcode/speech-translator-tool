@@ -1,15 +1,34 @@
+import { LANGUAGES } from "@/lib/speech/languages";
 import type { LanguageOption } from "@/types/speech";
 
 interface LanguageBarProps {
   source: LanguageOption;
   target: LanguageOption;
+  sourceCode: string;
+  targetCode: string;
+  onSourceChange: (code: string) => void;
+  onTargetChange: (code: string) => void;
   onSwap: () => void;
 }
 
-export function LanguageBar({ source, target, onSwap }: LanguageBarProps) {
+export function LanguageBar({
+  source,
+  target,
+  sourceCode,
+  targetCode,
+  onSourceChange,
+  onTargetChange,
+  onSwap,
+}: LanguageBarProps) {
   return (
     <div className="flex items-center gap-2 rounded-2xl border border-zinc-200 bg-zinc-50 p-3">
-      <LanguagePill label="From" language={source} />
+      <LanguageSelect
+        label="From"
+        value={sourceCode}
+        selected={source}
+        onChange={onSourceChange}
+        excludeCode={targetCode}
+      />
       <button
         type="button"
         onClick={onSwap}
@@ -30,25 +49,49 @@ export function LanguageBar({ source, target, onSwap }: LanguageBarProps) {
           <path d="M17 8v12m0 0 4-4m-4 4-4-4" />
         </svg>
       </button>
-      <LanguagePill label="To" language={target} />
+      <LanguageSelect
+        label="To"
+        value={targetCode}
+        selected={target}
+        onChange={onTargetChange}
+        excludeCode={sourceCode}
+      />
     </div>
   );
 }
 
-function LanguagePill({
+function LanguageSelect({
   label,
-  language,
+  value,
+  selected,
+  onChange,
+  excludeCode,
 }: {
   label: string;
-  language: LanguageOption;
+  value: string;
+  selected: LanguageOption;
+  onChange: (code: string) => void;
+  excludeCode: string;
 }) {
   return (
-    <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+    <div className="flex min-w-0 flex-1 flex-col gap-1">
       <span className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">
         {label}
       </span>
-      <span className="truncate text-sm font-semibold text-zinc-900">
-        {language.label}
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        aria-label={`${label} language`}
+        className="w-full truncate rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-sm font-semibold text-zinc-900 shadow-sm outline-none ring-violet-400 focus:ring-2"
+      >
+        {LANGUAGES.filter((lang) => lang.code !== excludeCode).map((lang) => (
+          <option key={lang.code} value={lang.code}>
+            {lang.label}
+          </option>
+        ))}
+      </select>
+      <span className="truncate pl-0.5 text-[10px] text-zinc-400">
+        {selected.speechLocale}
       </span>
     </div>
   );

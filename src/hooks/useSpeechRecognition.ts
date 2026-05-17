@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getSpeechRecognitionConstructor } from "@/lib/speech/get-speech-recognition";
-import { unlockIosSpeechSynthesis } from "@/lib/speech/unlock-ios-tts";
+import { unlockIosAudioPlayback } from "@/lib/speech/unlock-ios-audio";
+import { cancelNeuralSpeech } from "@/lib/speech/play-neural-tts";
 import type { AppListeningState } from "@/types/speech";
 
 export interface UseSpeechRecognitionOptions {
@@ -203,9 +204,11 @@ export function useSpeechRecognition(
         return;
       }
 
-      unlockIosSpeechSynthesis();
-      if (typeof window !== "undefined" && window.speechSynthesis) {
-        window.speechSynthesis.cancel();
+      unlockIosAudioPlayback();
+      try {
+        cancelNeuralSpeech();
+      } catch {
+        // ignore
       }
 
       recognition.lang = langRef.current;

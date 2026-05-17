@@ -91,7 +91,11 @@ function ChatTurn({
       ) : null}
 
       {entry.status === "complete" && entry.translatedText ? (
-        <TargetBubble label={targetLabel} text={entry.translatedText} />
+        <TargetBubble
+          label={targetLabel}
+          text={entry.translatedText}
+          pinyin={entry.pinyin}
+        />
       ) : null}
 
       {entry.status === "error" ? (
@@ -121,10 +125,12 @@ function SourceBubble({ label, text }: { label: string; text: string }) {
 function TargetBubble({
   label,
   text,
+  pinyin,
   isLoading = false,
 }: {
   label: string;
   text?: string;
+  pinyin?: string;
   isLoading?: boolean;
 }) {
   return (
@@ -136,7 +142,14 @@ function TargetBubble({
         {isLoading ? (
           <LoadingDots label="Translating…" size="sm" className="text-violet-600" />
         ) : (
-          <p className="font-semibold">{text}</p>
+          <>
+            <p className="font-semibold">{text}</p>
+            {pinyin ? (
+              <p className="mt-1.5 border-t border-violet-100/80 pt-1.5 text-xs font-normal tracking-wide text-violet-600/90">
+                {pinyin}
+              </p>
+            ) : null}
+          </>
         )}
       </div>
     </div>

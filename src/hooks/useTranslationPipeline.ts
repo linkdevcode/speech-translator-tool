@@ -4,7 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { ToastVariant } from "@/hooks/useToast";
 import { RateLimitError } from "@/lib/errors/rate-limit-error";
-import { cancelSpeech, speakText } from "@/lib/speech/speak-text";
+import {
+  cancelNeuralSpeech,
+  playNeuralTts,
+} from "@/lib/speech/play-neural-tts";
 import { isValidTranscript } from "@/lib/translate/is-valid-transcript";
 import { translateText } from "@/lib/translate/translate-text";
 import type { ConversationEntry, PipelineState } from "@/types/translator";
@@ -12,7 +15,8 @@ import type { ConversationEntry, PipelineState } from "@/types/translator";
 export interface UseTranslationPipelineOptions {
   sourceLanguage: string;
   targetLanguage: string;
-  targetLocale: string;
+  targetLanguageCode: string;
+  neuralVoice: string;
   showToast: (message: string, variant?: ToastVariant) => void;
 }
 
@@ -55,7 +59,8 @@ export function useTranslationPipeline(
     const {
       sourceLanguage: sourceLang,
       targetLanguage: targetLang,
-      targetLocale: locale,
+      targetLanguageCode,
+      neuralVoice,
       showToast,
     } = optionsRef.current;
 
@@ -64,7 +69,7 @@ export function useTranslationPipeline(
     isBusyRef.current = true;
 
     try {
-      cancelSpeech();
+      cancelNeuralSpeech();
     } catch {
       // ignore cancel errors
     }
@@ -83,7 +88,8 @@ export function useTranslationPipeline(
 
     void (async () => {
       try {
-        const translation = await translateText(text, sourceLang, targetLang, {
+        const result = await translateText(text, sourceLang, targetLang, {
+          targetLanguageCode,
           onRetry: (_attempt, delayMs) => {
             const seconds = Math.round(delayMs / 1000);
             showToast(
@@ -98,14 +104,15 @@ export function useTranslationPipeline(
         }
 
         updateEntry(entryId, {
-          translatedText: translation,
+          translatedText: result.translation,
+          pinyin: result.pinyin,
           status: "complete",
         });
 
         setPipelineState("speaking");
 
         try {
-          await speakText(translation, locale);
+          await playNeuralTts(result.translation, neuralVoice);
         } catch (error) {
           const message =
             error instanceof Error
@@ -151,7 +158,7 @@ export function useTranslationPipeline(
     isBusyRef.current = false;
 
     try {
-      cancelSpeech();
+      cancelNeuralSpeech();
     } catch {
       // ignore
     }
@@ -165,6 +172,6 @@ export function useTranslationPipeline(
     history,
     handleFinalTranscript,
     clearHistory,
-    cancelSpeech,
+    cancelSpeech: cancelNeuralSpeech,
   };
 }
