@@ -32,3 +32,9 @@ When writing the system prompt for the Gemini 3 Flash API, strictly enforce:
 ## 5. SECURITY & OPTIMIZATION
 - Never expose `GEMINI_API_KEY` to the client-side bundle. Keep it inside `.env.local` and fetch it securely through the `/api/translate` route.
 - Implement strict rate-limiting safe-guards on the frontend to prevent overlapping or rapid back-to-back API calls within the same conversational turn.
+
+### Chinese Language & Advanced TTS Support Rules:
+- Support both Simplified Chinese (zh-CN) and Traditional Chinese (zh-TW).
+- When handling Chinese output, the Gemini prompt should optionally request Pinyin transliteration formatted clearly for the UI layout.
+- For Enhanced TTS: Transition from native window.speechSynthesis to a backend Neural TTS route (`/api/tts`) using Edge-TTS style neural voices (e.g., "zh-CN-XiaoxiaoNeural" for Chinese, "en-US-AriaNeural" for English) to ensure highly natural, emotional human-like voices across all devices, including iOS.
+- Ensure the audio buffer from `/api/tts` is played on the frontend using standard Web Audio API or `new Audio(url)`, maintaining the iOS "User Gesture" unlock rule.

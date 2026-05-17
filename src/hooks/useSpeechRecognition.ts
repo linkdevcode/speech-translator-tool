@@ -11,6 +11,7 @@ export interface UseSpeechRecognitionOptions {
   onFinalTranscript?: (text: string) => void;
   /** Fired when the user speaks (any STT result). Use to cancel overlapping TTS. */
   onSpeechActivity?: () => void;
+  onError?: (message: string) => void;
 }
 
 export interface UseSpeechRecognitionReturn {
@@ -49,7 +50,7 @@ function parseResults(event: SpeechRecognitionEvent): {
 export function useSpeechRecognition(
   options: UseSpeechRecognitionOptions,
 ): UseSpeechRecognitionReturn {
-  const { lang, onFinalTranscript, onSpeechActivity } = options;
+  const { lang, onFinalTranscript, onSpeechActivity, onError } = options;
 
   const [isSupported, setIsSupported] = useState(false);
   const [listeningState, setListeningState] =
@@ -64,6 +65,12 @@ export function useSpeechRecognition(
   const langRef = useRef(lang);
   const onFinalTranscriptRef = useRef(onFinalTranscript);
   const onSpeechActivityRef = useRef(onSpeechActivity);
+  const onErrorRef = useRef(onError);
+
+  const reportError = useCallback((message: string) => {
+    setError(message);
+    onErrorRef.current?.(message);
+  }, []);
 
   useEffect(() => {
     langRef.current = lang;
@@ -80,6 +87,10 @@ export function useSpeechRecognition(
   useEffect(() => {
     onSpeechActivityRef.current = onSpeechActivity;
   }, [onSpeechActivity]);
+
+  useEffect(() => {
+    onErrorRef.current = onError;
+  }, [onError]);
 
   useEffect(() => {
     setIsSupported(getSpeechRecognitionConstructor() !== null);
@@ -117,34 +128,42 @@ export function useSpeechRecognition(
     };
 
     recognition.onresult = (event) => {
-      onSpeechActivityRef.current?.();
+      try {
+        onSpeechActivityRef.current?.();
 
-      const { final, interim } = parseResults(event);
+        const { final, interim } = parseResults(event);
 
-      if (final) {
-        sessionFinalRef.current += final;
-        setFinalTranscript(sessionFinalRef.current);
-        onFinalTranscriptRef.current?.(final.trim());
+        if (final) {
+          sessionFinalRef.current += final;
+          setFinalTranscript(sessionFinalRef.current);
+          onFinalTranscriptRef.current?.(final.trim());
+        }
+
+        setInterimTranscript(interim);
+      } catch {
+        reportError("Could not process speech recognition result.");
       }
-
-      setInterimTranscript(interim);
     };
 
     recognition.onerror = (event) => {
-      if (event.error === "aborted" || event.error === "no-speech") {
-        return;
-      }
+      try {
+        if (event.error === "aborted" || event.error === "no-speech") {
+          return;
+        }
 
-      if (event.error === "not-allowed") {
-        isListeningEnabledRef.current = false;
-        setListeningState("idle");
-        setError(
-          "Microphone permission denied. Please allow access and try again.",
-        );
-        return;
-      }
+        if (event.error === "not-allowed") {
+          isListeningEnabledRef.current = false;
+          setListeningState("idle");
+          reportError(
+            "Microphone permission denied. Please allow access and try again.",
+          );
+          return;
+        }
 
-      setError(`Speech recognition error: ${event.error}`);
+        reportError(`Speech recognition error: ${event.error}`);
+      } catch {
+        reportError("Speech recognition encountered an unexpected error.");
+      }
     };
 
     recognition.onend = () => {
@@ -174,30 +193,34 @@ export function useSpeechRecognition(
 
       recognitionRef.current = null;
     };
-  }, [restartRecognition]);
+  }, [reportError, restartRecognition]);
 
   const startListening = useCallback(() => {
-    const recognition = recognitionRef.current;
-    if (!recognition) {
-      setError("Speech recognition is not supported in this browser.");
-      return;
-    }
-
-    unlockIosSpeechSynthesis();
-    if (typeof window !== "undefined" && window.speechSynthesis) {
-      window.speechSynthesis.cancel();
-    }
-
-    recognition.lang = langRef.current;
-    isListeningEnabledRef.current = true;
-    setError(null);
-
     try {
-      recognition.start();
+      const recognition = recognitionRef.current;
+      if (!recognition) {
+        reportError("Speech recognition is not supported in this browser.");
+        return;
+      }
+
+      unlockIosSpeechSynthesis();
+      if (typeof window !== "undefined" && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+
+      recognition.lang = langRef.current;
+      isListeningEnabledRef.current = true;
+      setError(null);
+
+      try {
+        recognition.start();
+      } catch {
+        restartRecognition();
+      }
     } catch {
-      restartRecognition();
+      reportError("Could not start the microphone. Please try again.");
     }
-  }, [restartRecognition]);
+  }, [reportError, restartRecognition]);
 
   const stopListening = useCallback(() => {
     isListeningEnabledRef.current = false;

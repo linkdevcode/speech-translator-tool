@@ -3,30 +3,59 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
+import { useToast } from "@/hooks/useToast";
 import { useTranslationPipeline } from "@/hooks/useTranslationPipeline";
+import { isSpeechRecognitionSupported } from "@/lib/speech/get-speech-recognition";
 import { ensureVoicesLoaded } from "@/lib/speech/ensure-voices";
 import { getLanguageByCode } from "@/lib/speech/languages";
-import { ConversationHistory } from "./ConversationHistory";
+import { ChatTranscript } from "./ChatTranscript";
 import { LanguageBar } from "./LanguageBar";
 import { MicButton } from "./MicButton";
 import { StatusBadge } from "./StatusBadge";
-import { ToastBanner } from "./ToastBanner";
+import { Toast } from "./Toast";
 import { TranscriptPanel } from "./TranscriptPanel";
-import { TranslationPanel } from "./TranslationPanel";
 import { UnsupportedBrowser } from "./UnsupportedBrowser";
+
+const UNSUPPORTED_BROWSER_MESSAGE =
+  "Your browser does not support native voice recognition. Please use Google Chrome, Microsoft Edge, or Safari.";
 
 export function TranslatorApp() {
   const [sourceCode, setSourceCode] = useState("vi");
   const [targetCode, setTargetCode] = useState("en");
+  const [browserSupported, setBrowserSupported] = useState<boolean | null>(null);
+
+  const { toast, showToast, dismissToast } = useToast();
 
   const source = useMemo(() => getLanguageByCode(sourceCode), [sourceCode]);
   const target = useMemo(() => getLanguageByCode(targetCode), [targetCode]);
 
+  useEffect(() => {
+    try {
+      const supported = isSpeechRecognitionSupported();
+      setBrowserSupported(supported);
+
+      if (!supported) {
+        showToast(UNSUPPORTED_BROWSER_MESSAGE, "error", 8000);
+      }
+    } catch {
+      setBrowserSupported(false);
+      showToast(UNSUPPORTED_BROWSER_MESSAGE, "error", 8000);
+    }
+  }, [showToast]);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        await ensureVoicesLoaded();
+      } catch {
+        // voices may load later; non-fatal
+      }
+    })();
+  }, []);
+
   const {
     pipelineState,
-    currentTranslation,
     history,
-    toast,
     handleFinalTranscript,
     clearHistory,
     cancelSpeech,
@@ -34,101 +63,128 @@ export function TranslatorApp() {
     sourceLanguage: source.label,
     targetLanguage: target.label,
     targetLocale: target.speechLocale,
+    showToast,
   });
 
-  useEffect(() => {
-    void ensureVoicesLoaded();
-  }, []);
+  const handleSpeechError = useCallback(
+    (message: string) => {
+      showToast(message, "error");
+    },
+    [showToast],
+  );
 
   const {
     isSupported,
     listeningState,
     finalTranscript,
     interimTranscript,
-    error,
     toggleListening,
     clearTranscript,
   } = useSpeechRecognition({
     lang: source.speechLocale,
     onFinalTranscript: handleFinalTranscript,
     onSpeechActivity: cancelSpeech,
+    onError: handleSpeechError,
   });
 
   const handleSwap = useCallback(() => {
-    setSourceCode(targetCode);
-    setTargetCode(sourceCode);
-    clearTranscript();
-    clearHistory();
-  }, [clearHistory, clearTranscript, sourceCode, targetCode]);
+    try {
+      setSourceCode(targetCode);
+      setTargetCode(sourceCode);
+      clearTranscript();
+      clearHistory();
+    } catch {
+      showToast("Could not swap languages. Please try again.", "error");
+    }
+  }, [clearHistory, clearTranscript, showToast, sourceCode, targetCode]);
 
   const handleClearAll = useCallback(() => {
-    clearTranscript();
-    clearHistory();
-  }, [clearHistory, clearTranscript]);
+    try {
+      clearTranscript();
+      clearHistory();
+    } catch {
+      showToast("Could not clear conversation.", "error");
+    }
+  }, [clearHistory, clearTranscript, showToast]);
+
+  const handleMicClick = useCallback(() => {
+    try {
+      toggleListening();
+    } catch {
+      showToast("Microphone could not be started. Please try again.", "error");
+    }
+  }, [showToast, toggleListening]);
 
   const hasTranscript = Boolean(finalTranscript || interimTranscript);
+  const isUnsupported = browserSupported === false || !isSupported;
 
-  if (!isSupported) {
-    return <UnsupportedBrowser />;
+  if (browserSupported === null) {
+    return (
+      <main className="mx-auto flex min-h-full max-w-md items-center justify-center px-4 py-12">
+        <p className="text-sm text-zinc-500">Loading…</p>
+      </main>
+    );
+  }
+
+  if (isUnsupported) {
+    return (
+      <>
+        <UnsupportedBrowser />
+        <Toast toast={toast} onDismiss={dismissToast} />
+      </>
+    );
   }
 
   return (
-    <main className="mx-auto flex min-h-full w-full max-w-md flex-col gap-4 px-4 py-6 pb-10">
-      <header className="space-y-1">
-        <h1 className="text-xl font-semibold tracking-tight text-zinc-900">
-          Voice Translator
-        </h1>
-        <p className="text-sm text-zinc-500">
-          Speak, translate, and hear the result instantly.
-        </p>
-      </header>
+    <>
+      <main className="mx-auto flex min-h-full w-full max-w-md flex-col gap-4 px-4 py-6 pb-28">
+        <header className="space-y-1">
+          <h1 className="text-xl font-semibold tracking-tight text-zinc-900">
+            Voice Translator
+          </h1>
+          <p className="text-sm text-zinc-500">
+            Speak, translate, and hear results in a live chat view.
+          </p>
+        </header>
 
-      <LanguageBar source={source} target={target} onSwap={handleSwap} />
+        <LanguageBar source={source} target={target} onSwap={handleSwap} />
 
-      <div className="flex flex-col gap-3">
-        <PanelHeader
-          label={source.label}
-          showClear={hasTranscript || Boolean(currentTranslation) || history.length > 0}
-          onClear={handleClearAll}
+        <section className="flex flex-col gap-2">
+          <PanelHeader
+            label={`Live · ${source.label}`}
+            showClear={hasTranscript || history.length > 0}
+            onClear={handleClearAll}
+          />
+          <TranscriptPanel
+            finalTranscript={finalTranscript}
+            interimTranscript={interimTranscript}
+            placeholder={`Tap the mic and speak in ${source.label}…`}
+          />
+        </section>
+
+        <ChatTranscript
+          entries={history}
+          sourceLabel={source.label}
+          targetLabel={target.label}
         />
-        <TranscriptPanel
-          finalTranscript={finalTranscript}
-          interimTranscript={interimTranscript}
-          placeholder={`Tap the mic and speak in ${source.label}…`}
-        />
-      </div>
 
-      <TranslationPanel
-        label={target.label}
-        translation={currentTranslation}
-        pipelineState={pipelineState}
-        placeholder={`Translation to ${target.label} will appear here`}
-      />
+        <footer className="fixed inset-x-0 bottom-0 z-40 border-t border-zinc-200/80 bg-zinc-100/95 px-4 py-4 backdrop-blur-md">
+          <div className="mx-auto flex w-full max-w-md flex-col items-center gap-3">
+            <StatusBadge
+              listeningState={listeningState}
+              pipelineState={pipelineState}
+            />
+            <MicButton
+              listeningState={listeningState}
+              onClick={handleMicClick}
+              disabled={pipelineState === "processing"}
+            />
+          </div>
+        </footer>
+      </main>
 
-      <ConversationHistory entries={history} />
-
-      {error ? (
-        <p
-          role="alert"
-          className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900"
-        >
-          {error}
-        </p>
-      ) : null}
-
-      <ToastBanner message={toast} />
-
-      <footer className="mt-auto flex flex-col items-center gap-4 pt-2">
-        <StatusBadge
-          listeningState={listeningState}
-          pipelineState={pipelineState}
-        />
-        <MicButton
-          listeningState={listeningState}
-          onClick={toggleListening}
-        />
-      </footer>
-    </main>
+      <Toast toast={toast} onDismiss={dismissToast} />
+    </>
   );
 }
 

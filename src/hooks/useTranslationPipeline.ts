@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import type { ToastVariant } from "@/hooks/useToast";
+import { RateLimitError } from "@/lib/errors/rate-limit-error";
 import { cancelSpeech, speakText } from "@/lib/speech/speak-text";
 import { isValidTranscript } from "@/lib/translate/is-valid-transcript";
 import { translateText } from "@/lib/translate/translate-text";
@@ -11,13 +13,12 @@ export interface UseTranslationPipelineOptions {
   sourceLanguage: string;
   targetLanguage: string;
   targetLocale: string;
+  showToast: (message: string, variant?: ToastVariant) => void;
 }
 
 export interface UseTranslationPipelineReturn {
   pipelineState: PipelineState;
-  currentTranslation: string;
   history: ConversationEntry[];
-  toast: string | null;
   handleFinalTranscript: (text: string) => void;
   clearHistory: () => void;
   cancelSpeech: () => void;
@@ -26,12 +27,8 @@ export interface UseTranslationPipelineReturn {
 export function useTranslationPipeline(
   options: UseTranslationPipelineOptions,
 ): UseTranslationPipelineReturn {
-  const { sourceLanguage, targetLanguage, targetLocale } = options;
-
   const [pipelineState, setPipelineState] = useState<PipelineState>("idle");
-  const [currentTranslation, setCurrentTranslation] = useState("");
   const [history, setHistory] = useState<ConversationEntry[]>([]);
-  const [toast, setToast] = useState<string | null>(null);
 
   const isBusyRef = useRef(false);
   const requestIdRef = useRef(0);
@@ -41,92 +38,131 @@ export function useTranslationPipeline(
     optionsRef.current = options;
   }, [options]);
 
-  const dismissToastLater = useCallback(() => {
-    window.setTimeout(() => setToast(null), 3200);
-  }, []);
+  const updateEntry = useCallback(
+    (id: string, patch: Partial<ConversationEntry>) => {
+      setHistory((prev) =>
+        prev.map((entry) => (entry.id === id ? { ...entry, ...patch } : entry)),
+      );
+    },
+    [],
+  );
 
-  const handleFinalTranscript = useCallback(
-    (text: string) => {
-      if (!isValidTranscript(text) || isBusyRef.current) {
-        return;
-      }
+  const handleFinalTranscript = useCallback((text: string) => {
+    if (!isValidTranscript(text) || isBusyRef.current) {
+      return;
+    }
 
-      const {
-        sourceLanguage: sourceLang,
-        targetLanguage: targetLang,
-        targetLocale: locale,
-      } = optionsRef.current;
+    const {
+      sourceLanguage: sourceLang,
+      targetLanguage: targetLang,
+      targetLocale: locale,
+      showToast,
+    } = optionsRef.current;
 
-      const requestId = ++requestIdRef.current;
-      isBusyRef.current = true;
+    const entryId = crypto.randomUUID();
+    const requestId = ++requestIdRef.current;
+    isBusyRef.current = true;
+
+    try {
       cancelSpeech();
-      setPipelineState("processing");
-      setToast(null);
+    } catch {
+      // ignore cancel errors
+    }
 
-      void (async () => {
+    setPipelineState("processing");
+    setHistory((prev) => [
+      ...prev,
+      {
+        id: entryId,
+        sourceText: text.trim(),
+        translatedText: "",
+        createdAt: Date.now(),
+        status: "translating",
+      },
+    ]);
+
+    void (async () => {
+      try {
+        const translation = await translateText(text, sourceLang, targetLang, {
+          onRetry: (_attempt, delayMs) => {
+            const seconds = Math.round(delayMs / 1000);
+            showToast(
+              `System busy, retrying in ${seconds} seconds…`,
+              "warning",
+            );
+          },
+        });
+
+        if (requestId !== requestIdRef.current) {
+          return;
+        }
+
+        updateEntry(entryId, {
+          translatedText: translation,
+          status: "complete",
+        });
+
+        setPipelineState("speaking");
+
         try {
-          const translation = await translateText(text, sourceLang, targetLang, {
-            onRetry: (_attempt, delayMs) => {
-              const seconds = Math.round(delayMs / 1000);
-              setToast(`System busy, retrying in ${seconds} seconds…`);
-            },
-          });
-
-          if (requestId !== requestIdRef.current) {
-            return;
-          }
-
-          setCurrentTranslation(translation);
-          setHistory((prev) => [
-            ...prev,
-            {
-              id: crypto.randomUUID(),
-              sourceText: text.trim(),
-              translatedText: translation,
-              createdAt: Date.now(),
-            },
-          ]);
-
-          setPipelineState("speaking");
           await speakText(translation, locale);
         } catch (error) {
-          if (requestId !== requestIdRef.current) {
-            return;
-          }
-
           const message =
             error instanceof Error
               ? error.message
-              : "Translation could not be completed.";
-
-          setToast(message);
-          dismissToastLater();
-        } finally {
-          if (requestId === requestIdRef.current) {
-            isBusyRef.current = false;
-            setPipelineState("idle");
-          }
+              : "Could not play translated audio.";
+          showToast(message, "error");
         }
-      })();
-    },
-    [dismissToastLater],
-  );
+      } catch (error) {
+        if (requestId !== requestIdRef.current) {
+          return;
+        }
+
+        if (error instanceof RateLimitError) {
+          updateEntry(entryId, {
+            status: "error",
+            errorMessage: error.message,
+          });
+          showToast(error.message, "error");
+          return;
+        }
+
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Translation could not be completed.";
+
+        updateEntry(entryId, {
+          status: "error",
+          errorMessage: message,
+        });
+        showToast(message, "error");
+      } finally {
+        if (requestId === requestIdRef.current) {
+          isBusyRef.current = false;
+          setPipelineState("idle");
+        }
+      }
+    })();
+  }, [updateEntry]);
 
   const clearHistory = useCallback(() => {
     requestIdRef.current += 1;
     isBusyRef.current = false;
-    cancelSpeech();
+
+    try {
+      cancelSpeech();
+    } catch {
+      // ignore
+    }
+
     setPipelineState("idle");
-    setCurrentTranslation("");
     setHistory([]);
-    setToast(null);
   }, []);
 
   return {
     pipelineState,
-    currentTranslation,
     history,
-    toast,
     handleFinalTranscript,
     clearHistory,
     cancelSpeech,

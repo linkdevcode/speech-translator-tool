@@ -20,13 +20,25 @@ export function MicButton({
       disabled={disabled}
       aria-pressed={isListening}
       aria-label={isListening ? "Stop listening" : "Start listening"}
-      className="group relative flex h-20 w-20 items-center justify-center rounded-full bg-zinc-900 text-white shadow-lg transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+      className={`group relative flex h-20 w-20 items-center justify-center rounded-full bg-zinc-900 text-white shadow-lg transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 ${
+        isListening ? "animate-mic-glow" : ""
+      }`}
     >
       {isListening ? (
-        <span
-          className="absolute inset-0 rounded-full bg-zinc-900/30 animate-mic-pulse"
-          aria-hidden
-        />
+        <>
+          <span
+            className="absolute inset-0 rounded-full bg-emerald-400/40 animate-mic-pulse"
+            aria-hidden
+          />
+          <span
+            className="absolute inset-0 rounded-full bg-emerald-400/25 animate-mic-pulse [animation-delay:450ms]"
+            aria-hidden
+          />
+          <span
+            className="absolute -inset-2 rounded-full border-2 border-emerald-400/50 animate-mic-ring"
+            aria-hidden
+          />
+        </>
       ) : null}
 
       <span className="relative flex h-10 w-10 items-center justify-center">
