@@ -78,12 +78,14 @@ export async function POST(request: NextRequest) {
     );
 
     const model = getGeminiModel();
+    const maxOutputTokens = expectsChineseJson ? 2048 : 1024;
+
     const result = await model.generateContentStream({
       systemInstruction,
       contents: [{ role: "user", parts: [{ text }] }],
       generationConfig: {
         temperature: 0,
-        maxOutputTokens: 1024,
+        maxOutputTokens,
         ...(expectsChineseJson ? { responseMimeType: "application/json" } : {}),
       },
     });
@@ -93,11 +95,23 @@ export async function POST(request: NextRequest) {
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
         try {
+          let streamed = "";
+
           for await (const chunk of result.stream) {
             const piece = chunk.text();
 
             if (piece) {
+              streamed += piece;
               controller.enqueue(encoder.encode(piece));
+            }
+          }
+
+          if (!streamed.trim()) {
+            const response = await result.response;
+            const fullText = response.text();
+
+            if (fullText) {
+              controller.enqueue(encoder.encode(fullText));
             }
           }
 

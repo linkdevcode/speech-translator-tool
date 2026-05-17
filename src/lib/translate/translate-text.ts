@@ -120,13 +120,40 @@ export async function translateText(
 
         accumulated += decoder.decode();
 
-        const finalResult = parseStreamedTranslation(
+        let finalResult = parseStreamedTranslation(
           accumulated,
           expectsChineseJson,
         );
 
+        if (
+          !finalResult.translation?.trim() &&
+          accumulated.trim() &&
+          expectsChineseJson
+        ) {
+          finalResult = parseStreamedTranslation(accumulated, false);
+        }
+
         if (!finalResult.translation?.trim()) {
-          throw new Error("Empty translation received");
+          throw new Error(
+            accumulated.trim()
+              ? "Could not read translation from the response. Please try again."
+              : "Empty translation received",
+          );
+        }
+
+        if (
+          expectsChineseJson &&
+          finalResult.translation.trim().startsWith("{") &&
+          finalResult.translation.includes('"translation"')
+        ) {
+          const reparsed = parseStreamedTranslation(
+            finalResult.translation,
+            true,
+          );
+
+          if (reparsed.translation?.trim()) {
+            finalResult = reparsed;
+          }
         }
 
         return {

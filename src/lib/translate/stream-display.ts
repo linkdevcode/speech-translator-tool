@@ -1,28 +1,13 @@
-import { parseTranslationResponse } from "@/lib/gemini/parse-translation";
+import {
+  extractJsonStringFieldLoose,
+  parseTranslationResponse,
+} from "@/lib/gemini/parse-translation";
 
 function stripCodeFences(raw: string): string {
   return raw
     .replace(/^```(?:json)?\s*/i, "")
     .replace(/\s*```$/i, "")
     .trim();
-}
-
-function unescapeJsonString(value: string): string {
-  return value
-    .replace(/\\"/g, '"')
-    .replace(/\\n/g, "\n")
-    .replace(/\\\\/g, "\\");
-}
-
-function extractJsonStringField(raw: string, field: string): string {
-  const regex = new RegExp(`"${field}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`);
-  const match = raw.match(regex);
-
-  if (!match?.[1]) {
-    return "";
-  }
-
-  return unescapeJsonString(match[1]);
 }
 
 function looksLikeChineseJsonPayload(text: string): boolean {
@@ -40,17 +25,20 @@ export function extractStreamingDisplay(
 
     if (looksLikeChineseJsonPayload(plain)) {
       const parsed = parseTranslationResponse(plain, true);
-      return {
-        translation: parsed.translation,
-        ...(parsed.pinyin ? { pinyin: parsed.pinyin } : {}),
-      };
+
+      if (parsed.translation) {
+        return {
+          translation: parsed.translation,
+          ...(parsed.pinyin ? { pinyin: parsed.pinyin } : {}),
+        };
+      }
     }
 
     return { translation: plain };
   }
 
-  const translation = extractJsonStringField(accumulated, "translation");
-  const pinyin = extractJsonStringField(accumulated, "pinyin");
+  const translation = extractJsonStringFieldLoose(accumulated, "translation");
+  const pinyin = extractJsonStringFieldLoose(accumulated, "pinyin");
 
   if (translation) {
     return {
