@@ -9,6 +9,8 @@ import type { AppListeningState } from "@/types/speech";
 export interface UseSpeechRecognitionOptions {
   lang: string;
   onFinalTranscript?: (text: string) => void;
+  /** Fired when the user speaks (any STT result). Use to cancel overlapping TTS. */
+  onSpeechActivity?: () => void;
 }
 
 export interface UseSpeechRecognitionReturn {
@@ -47,7 +49,7 @@ function parseResults(event: SpeechRecognitionEvent): {
 export function useSpeechRecognition(
   options: UseSpeechRecognitionOptions,
 ): UseSpeechRecognitionReturn {
-  const { lang, onFinalTranscript } = options;
+  const { lang, onFinalTranscript, onSpeechActivity } = options;
 
   const [isSupported, setIsSupported] = useState(false);
   const [listeningState, setListeningState] =
@@ -61,6 +63,7 @@ export function useSpeechRecognition(
   const sessionFinalRef = useRef("");
   const langRef = useRef(lang);
   const onFinalTranscriptRef = useRef(onFinalTranscript);
+  const onSpeechActivityRef = useRef(onSpeechActivity);
 
   useEffect(() => {
     langRef.current = lang;
@@ -73,6 +76,10 @@ export function useSpeechRecognition(
   useEffect(() => {
     onFinalTranscriptRef.current = onFinalTranscript;
   }, [onFinalTranscript]);
+
+  useEffect(() => {
+    onSpeechActivityRef.current = onSpeechActivity;
+  }, [onSpeechActivity]);
 
   useEffect(() => {
     setIsSupported(getSpeechRecognitionConstructor() !== null);
@@ -110,6 +117,8 @@ export function useSpeechRecognition(
     };
 
     recognition.onresult = (event) => {
+      onSpeechActivityRef.current?.();
+
       const { final, interim } = parseResults(event);
 
       if (final) {
