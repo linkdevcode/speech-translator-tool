@@ -1,0 +1,34 @@
+# Cursor Rules for Real-time Voice Translator
+
+## 1. TECH STACK & ARCHITECTURE STANDARD
+- Framework: Next.js (App Router), TailwindCSS, TypeScript.
+- State Management: React Hooks (useState, useEffect, useRef).
+- Core APIs: Web Speech API (Browser Native), Gemini 3 Flash API via `@google/generative-ai` or Next.js API Routes.
+- Architecture: Client-Heavy. Server-side is ONLY used for masking the Gemini API Key via standard Next.js API Routes (`/api/translate`). No heavy audio processing on the server.
+
+## 2. CROSS-PLATFORM COMPATIBILITY RULES (CRITICAL)
+Always write code that respects browser engine differences, specifically between iOS Safari (WebKit) and Android Chrome (Blink).
+
+### Web Speech Recognition (STT):
+- Always use the cross-browser prefix: `const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;`.
+- **iOS Safari Fix:** iOS ignores `recognition.continuous = true` and cuts off after 1-2 seconds of silence. You MUST handle the `onend` event: if the user's active state is still "LISTENING", programmatically re-invoke `recognition.start()`.
+
+### Web Speech Synthesis (TTS):
+- **iOS Audio Unlock Fix:** iOS blocks asynchronous audio playback inside fetch/async-await callbacks. You MUST execute a "silent/empty" utterance `window.speechSynthesis.speak(new SpeechSynthesisUtterance(''))` immediately inside the initial user click interaction (e.g., when tapping the "Start Mic" button). This unlocks the audio context channel for subsequent async Gemini responses.
+- Always call `window.speechSynthesis.cancel()` before starting a new translation layout or when the microphone reactivates to prevent voice overlapping.
+
+## 3. CODE STYLE & IMPLEMENTATION PREFERENCES
+- Writing Style: Functional components, clean TypeScript interfaces, hooks-based side effects.
+- Error Handling: Defensive programming. Always wrap API calls and Browser Media API requests in `try/catch` blocks.
+- Performance: Use `useRef` for tracking continuous streaming states (like `recognition` instances, timers, or toggle flags) to avoid unnecessary React re-renders.
+- UI Feedback: Provide immediate visual feedback for all states: *Listening (pulsing micro animation), Processing/Thinking (loading skeleton/dots), Speaking (audio wave indicator), Error (toast warning).*
+
+## 4. LLM PROMPT & TRANSLATION RULES
+When writing the system prompt for the Gemini 3 Flash API, strictly enforce:
+- Role: Fast, natural conversational interpreter.
+- Output Format: **Strictly return ONLY the translated string**. Absolutely NO introduction, NO conversational filler, NO explanation, and NO markdown quotes.
+- Context Retention: Translate idioms and spoken phrasing naturally rather than literal word-for-word translation.
+
+## 5. SECURITY & OPTIMIZATION
+- Never expose `GEMINI_API_KEY` to the client-side bundle. Keep it inside `.env.local` and fetch it securely through the `/api/translate` route.
+- Implement strict rate-limiting safe-guards on the frontend to prevent overlapping or rapid back-to-back API calls within the same conversational turn.
