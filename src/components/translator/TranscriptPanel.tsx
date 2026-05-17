@@ -13,7 +13,7 @@ export function TranscriptPanel({
 
   return (
     <section
-      className="min-h-[140px] flex-1 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm"
+      className="min-h-[5.5rem] rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm"
       aria-live="polite"
       aria-atomic="false"
     >

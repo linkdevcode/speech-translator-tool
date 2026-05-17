@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 import { LoadingDots } from "@/components/ui/LoadingDots";
 import type { ConversationEntry } from "@/types/translator";
@@ -9,34 +9,50 @@ interface ChatTranscriptProps {
   entries: ConversationEntry[];
   sourceLabel: string;
   targetLabel: string;
+  className?: string;
 }
 
 export function ChatTranscript({
   entries,
   sourceLabel,
   targetLabel,
+  className = "",
 }: ChatTranscriptProps) {
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollSignature = useMemo(
+    () =>
+      entries
+        .map(
+          (entry) =>
+            `${entry.id}:${entry.status}:${entry.sourceText}:${entry.translatedText}:${entry.pinyin ?? ""}`,
+        )
+        .join("|"),
+    [entries],
+  );
 
   useEffect(() => {
-    const container = scrollRef.current;
-    if (!container) {
+    const anchor = messagesEndRef.current;
+    if (!anchor) {
       return;
     }
 
     try {
-      container.scrollTo({
-        top: container.scrollHeight,
-        behavior: "smooth",
-      });
+      anchor.scrollIntoView({ behavior: "smooth", block: "end" });
     } catch {
-      container.scrollTop = container.scrollHeight;
+      const container = scrollContainerRef.current;
+      if (container) {
+        container.scrollTop = container.scrollHeight;
+      }
     }
-  }, [entries]);
+  }, [scrollSignature]);
 
   if (entries.length === 0) {
     return (
-      <section className="flex min-h-[220px] flex-1 flex-col rounded-2xl border border-dashed border-zinc-200 bg-white/80 p-5">
+      <section
+        className={`flex min-h-[8rem] flex-col rounded-2xl border border-dashed border-zinc-200 bg-white/80 p-5 ${className}`}
+      >
         <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
           Conversation
         </h2>
@@ -49,25 +65,30 @@ export function ChatTranscript({
   }
 
   return (
-    <section className="flex min-h-[220px] flex-1 flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
-      <div className="border-b border-zinc-100 px-4 py-3">
+    <section
+      className={`flex min-h-0 flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm ${className}`}
+    >
+      <div className="shrink-0 border-b border-zinc-100 px-4 py-2.5">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
           Conversation
         </h2>
       </div>
 
-      <div
-        ref={scrollRef}
-        className="flex flex-1 flex-col gap-4 overflow-y-auto px-3 py-4"
+      <div         ref={scrollContainerRef}
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pt-3 pb-2"
+        aria-label="Conversation messages"
       >
-        {entries.map((entry) => (
-          <ChatTurn
-            key={entry.id}
-            entry={entry}
-            sourceLabel={sourceLabel}
-            targetLabel={targetLabel}
-          />
-        ))}
+        <div className="flex flex-col gap-4 pb-3">
+          {entries.map((entry) => (
+            <ChatTurn
+              key={entry.id}
+              entry={entry}
+              sourceLabel={sourceLabel}
+              targetLabel={targetLabel}
+            />
+          ))}
+          <div ref={messagesEndRef} className="h-4 w-full shrink-0" aria-hidden />
+        </div>
       </div>
     </section>
   );

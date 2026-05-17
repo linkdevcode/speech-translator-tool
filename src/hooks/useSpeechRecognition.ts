@@ -3,9 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getSpeechRecognitionConstructor } from "@/lib/speech/get-speech-recognition";
-import { unlockIosAudioPlayback } from "@/lib/speech/unlock-ios-audio";
+import { normalizeSpeechText } from "@/lib/speech/normalize-transcript";
 import { cancelNeuralSpeech } from "@/lib/speech/play-neural-tts";
+import { unlockIosAudioPlayback } from "@/lib/speech/unlock-ios-audio";
 import type { AppListeningState } from "@/types/speech";
+
+const SILENCE_DEBOUNCE_MS = 600;
 
 export interface UseSpeechRecognitionOptions {
   lang: string;
@@ -27,7 +30,7 @@ export interface UseSpeechRecognitionReturn {
   clearTranscript: () => void;
 }
 
-function parseResults(event: SpeechRecognitionEvent): {
+function buildDisplayTranscripts(event: SpeechRecognitionEvent): {
   final: string;
   interim: string;
 } {
@@ -45,7 +48,10 @@ function parseResults(event: SpeechRecognitionEvent): {
     }
   }
 
-  return { final, interim };
+  return {
+    final: normalizeSpeechText(final),
+    interim: interim.trim(),
+  };
 }
 
 export function useSpeechRecognition(
@@ -62,16 +68,67 @@ export function useSpeechRecognition(
 
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const isListeningEnabledRef = useRef(false);
-  const sessionFinalRef = useRef("");
   const langRef = useRef(lang);
   const onFinalTranscriptRef = useRef(onFinalTranscript);
   const onSpeechActivityRef = useRef(onSpeechActivity);
   const onErrorRef = useRef(onError);
+  const debounceTimerRef = useRef<number | null>(null);
+  const pendingInterimRef = useRef("");
 
   const reportError = useCallback((message: string) => {
     setError(message);
     onErrorRef.current?.(message);
   }, []);
+
+  const clearDebounce = useCallback(() => {
+    if (debounceTimerRef.current !== null) {
+      window.clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+  }, []);
+
+  const resetLiveTranscript = useCallback(() => {
+    setFinalTranscript("");
+    setInterimTranscript("");
+    pendingInterimRef.current = "";
+  }, []);
+
+  const commitUtterance = useCallback(
+    (raw: string) => {
+      clearDebounce();
+
+      const normalized = normalizeSpeechText(raw);
+      if (!normalized) {
+        return;
+      }
+
+      onFinalTranscriptRef.current?.(normalized);
+      resetLiveTranscript();
+    },
+    [clearDebounce, resetLiveTranscript],
+  );
+
+  const scheduleInterimFlush = useCallback(() => {
+    clearDebounce();
+
+    debounceTimerRef.current = window.setTimeout(() => {
+      debounceTimerRef.current = null;
+      const pending = pendingInterimRef.current;
+      pendingInterimRef.current = "";
+
+      if (pending) {
+        commitUtterance(pending);
+      }
+    }, SILENCE_DEBOUNCE_MS);
+  }, [clearDebounce, commitUtterance]);
+
+  const flushPendingInterim = useCallback(() => {
+    clearDebounce();
+
+    if (pendingInterimRef.current) {
+      commitUtterance(pendingInterimRef.current);
+    }
+  }, [clearDebounce, commitUtterance]);
 
   useEffect(() => {
     langRef.current = lang;
@@ -96,6 +153,12 @@ export function useSpeechRecognition(
   useEffect(() => {
     setIsSupported(getSpeechRecognitionConstructor() !== null);
   }, []);
+
+  useEffect(() => {
+    return () => {
+      clearDebounce();
+    };
+  }, [clearDebounce]);
 
   const restartRecognition = useCallback(() => {
     const recognition = recognitionRef.current;
@@ -132,15 +195,35 @@ export function useSpeechRecognition(
       try {
         onSpeechActivityRef.current?.();
 
-        const { final, interim } = parseResults(event);
+        let newFinalSegment = "";
 
-        if (final) {
-          sessionFinalRef.current += final;
-          setFinalTranscript(sessionFinalRef.current);
-          onFinalTranscriptRef.current?.(final.trim());
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const result = event.results[i];
+          const transcript = result[0]?.transcript ?? "";
+
+          if (result.isFinal) {
+            newFinalSegment += transcript;
+          }
         }
 
-        setInterimTranscript(interim);
+        const { final: displayFinal, interim: displayInterim } =
+          buildDisplayTranscripts(event);
+
+        setFinalTranscript(displayFinal);
+        setInterimTranscript(displayInterim);
+
+        if (newFinalSegment.trim()) {
+          commitUtterance(newFinalSegment);
+          return;
+        }
+
+        if (displayInterim) {
+          pendingInterimRef.current = displayInterim;
+          scheduleInterimFlush();
+        } else {
+          pendingInterimRef.current = "";
+          clearDebounce();
+        }
       } catch {
         reportError("Could not process speech recognition result.");
       }
@@ -155,6 +238,7 @@ export function useSpeechRecognition(
         if (event.error === "not-allowed") {
           isListeningEnabledRef.current = false;
           setListeningState("idle");
+          clearDebounce();
           reportError(
             "Microphone permission denied. Please allow access and try again.",
           );
@@ -168,7 +252,7 @@ export function useSpeechRecognition(
     };
 
     recognition.onend = () => {
-      setInterimTranscript("");
+      flushPendingInterim();
 
       if (isListeningEnabledRef.current) {
         setListeningState("listening");
@@ -177,10 +261,12 @@ export function useSpeechRecognition(
       }
 
       setListeningState("idle");
+      resetLiveTranscript();
     };
 
     return () => {
       isListeningEnabledRef.current = false;
+      clearDebounce();
       recognition.onstart = null;
       recognition.onresult = null;
       recognition.onerror = null;
@@ -194,7 +280,15 @@ export function useSpeechRecognition(
 
       recognitionRef.current = null;
     };
-  }, [reportError, restartRecognition]);
+  }, [
+    clearDebounce,
+    commitUtterance,
+    flushPendingInterim,
+    reportError,
+    resetLiveTranscript,
+    restartRecognition,
+    scheduleInterimFlush,
+  ]);
 
   const startListening = useCallback(() => {
     try {
@@ -214,6 +308,8 @@ export function useSpeechRecognition(
       recognition.lang = langRef.current;
       isListeningEnabledRef.current = true;
       setError(null);
+      resetLiveTranscript();
+      clearDebounce();
 
       try {
         recognition.start();
@@ -223,15 +319,21 @@ export function useSpeechRecognition(
     } catch {
       reportError("Could not start the microphone. Please try again.");
     }
-  }, [reportError, restartRecognition]);
+  }, [
+    clearDebounce,
+    reportError,
+    resetLiveTranscript,
+    restartRecognition,
+  ]);
 
   const stopListening = useCallback(() => {
     isListeningEnabledRef.current = false;
-    setInterimTranscript("");
+    flushPendingInterim();
 
     const recognition = recognitionRef.current;
     if (!recognition) {
       setListeningState("idle");
+      resetLiveTranscript();
       return;
     }
 
@@ -239,8 +341,9 @@ export function useSpeechRecognition(
       recognition.stop();
     } catch {
       setListeningState("idle");
+      resetLiveTranscript();
     }
-  }, []);
+  }, [flushPendingInterim, resetLiveTranscript]);
 
   const toggleListening = useCallback(() => {
     if (isListeningEnabledRef.current) {
@@ -251,10 +354,9 @@ export function useSpeechRecognition(
   }, [startListening, stopListening]);
 
   const clearTranscript = useCallback(() => {
-    sessionFinalRef.current = "";
-    setFinalTranscript("");
-    setInterimTranscript("");
-  }, []);
+    clearDebounce();
+    resetLiveTranscript();
+  }, [clearDebounce, resetLiveTranscript]);
 
   return {
     isSupported,

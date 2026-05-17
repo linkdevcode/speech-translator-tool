@@ -127,8 +127,8 @@ export function TranslatorApp() {
 
   return (
     <>
-      <main className="mx-auto flex min-h-full w-full max-w-md flex-col gap-4 px-4 py-6 pb-28">
-        <header className="space-y-1">
+      <main className="mx-auto flex h-dvh max-h-dvh w-full max-w-md flex-col gap-3 overflow-hidden px-4 pt-4 pb-[calc(10.5rem+env(safe-area-inset-bottom,0px))]">
+        <header className="shrink-0 space-y-1">
           <h1 className="text-xl font-semibold tracking-tight text-zinc-900">
             Voice Translator
           </h1>
@@ -137,17 +137,19 @@ export function TranslatorApp() {
           </p>
         </header>
 
-        <LanguageBar
-        source={source}
-        target={target}
-        sourceCode={sourceCode}
-        targetCode={targetCode}
-        onSourceChange={setSourceCode}
-        onTargetChange={setTargetCode}
-        onSwap={handleSwap}
-      />
+        <div className="shrink-0">
+          <LanguageBar
+            source={source}
+            target={target}
+            sourceCode={sourceCode}
+            targetCode={targetCode}
+            onSourceChange={setSourceCode}
+            onTargetChange={setTargetCode}
+            onSwap={handleSwap}
+          />
+        </div>
 
-        <section className="flex flex-col gap-2">
+        <section className="flex shrink-0 flex-col gap-2">
           <PanelHeader
             label={`Live · ${source.label}`}
             showClear={hasTranscript || history.length > 0}
@@ -164,9 +166,10 @@ export function TranslatorApp() {
           entries={history}
           sourceLabel={source.label}
           targetLabel={target.label}
+          className="min-h-0 flex-1"
         />
 
-        <footer className="fixed inset-x-0 bottom-0 z-40 border-t border-zinc-200/80 bg-zinc-100/95 px-4 py-4 backdrop-blur-md">
+        <footer className="fixed inset-x-0 bottom-0 z-40 border-t border-zinc-200/80 bg-zinc-100/95 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] backdrop-blur-md">
           <div className="mx-auto flex w-full max-w-md flex-col items-center gap-3">
             <StatusBadge
               listeningState={listeningState}
