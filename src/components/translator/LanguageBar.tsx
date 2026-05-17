@@ -1,5 +1,6 @@
-import { LANGUAGES } from "@/lib/speech/languages";
 import type { LanguageOption } from "@/types/speech";
+
+import { LanguagePicker } from "./LanguagePicker";
 
 interface LanguageBarProps {
   source: LanguageOption;
@@ -78,18 +79,13 @@ function LanguageSelect({
       <span className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">
         {label}
       </span>
-      <select
+      <LanguagePicker
+        label={label}
         value={value}
-        onChange={(event) => onChange(event.target.value)}
-        aria-label={`${label} language`}
-        className="w-full truncate rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-sm font-semibold text-zinc-900 shadow-sm outline-none ring-violet-400 focus:ring-2"
-      >
-        {LANGUAGES.filter((lang) => lang.code !== excludeCode).map((lang) => (
-          <option key={lang.code} value={lang.code}>
-            {lang.label}
-          </option>
-        ))}
-      </select>
+        selected={selected}
+        onChange={onChange}
+        excludeCode={excludeCode}
+      />
       <span className="truncate pl-0.5 text-[10px] text-zinc-400">
         {selected.speechLocale}
       </span>
