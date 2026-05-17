@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { vi } from "@/lib/i18n/vi";
 import { getSpeechRecognitionConstructor } from "@/lib/speech/get-speech-recognition";
 import { joinTranscriptParts } from "@/lib/speech/join-transcript";
 import { collapseTranscriptRepetition } from "@/lib/speech/merge-transcript";
@@ -231,7 +232,7 @@ export function useSpeechRecognition(
           clearDebounce();
         }
       } catch {
-        reportError("Could not process speech recognition result.");
+        reportError(vi.errors.sttProcess);
       }
     };
 
@@ -246,15 +247,13 @@ export function useSpeechRecognition(
           setListeningState("idle");
           clearDebounce();
           sessionAccumulatedRef.current = "";
-          reportError(
-            "Microphone permission denied. Please allow access and try again.",
-          );
+          reportError(vi.errors.micDenied);
           return;
         }
 
-        reportError(`Speech recognition error: ${event.error}`);
+        reportError(vi.errors.sttError(event.error));
       } catch {
-        reportError("Speech recognition encountered an unexpected error.");
+        reportError(vi.errors.sttUnexpected);
       }
     };
 
@@ -299,7 +298,7 @@ export function useSpeechRecognition(
     try {
       const recognition = recognitionRef.current;
       if (!recognition) {
-        reportError("Speech recognition is not supported in this browser.");
+        reportError(vi.errors.sttUnsupported);
         return;
       }
 
@@ -323,7 +322,7 @@ export function useSpeechRecognition(
         restartRecognition();
       }
     } catch {
-      reportError("Could not start the microphone. Please try again.");
+      reportError(vi.errors.micStart);
     }
   }, [
     clearDebounce,

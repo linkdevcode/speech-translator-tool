@@ -1,4 +1,5 @@
 import type { ToastState } from "@/hooks/useToast";
+import { vi } from "@/lib/i18n/vi";
 
 interface ToastProps {
   toast: ToastState | null;
@@ -45,7 +46,7 @@ export function Toast({ toast, onDismiss }: ToastProps) {
           type="button"
           onClick={onDismiss}
           className="shrink-0 rounded-lg px-1 text-xs opacity-70 transition-opacity hover:opacity-100"
-          aria-label="Dismiss notification"
+          aria-label={vi.toast.dismiss}
         >
           ✕
         </button>

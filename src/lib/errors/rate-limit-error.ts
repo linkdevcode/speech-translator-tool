@@ -1,8 +1,8 @@
+import { vi } from "@/lib/i18n/vi";
+
 export class RateLimitError extends Error {
-  constructor(
-    message = "API rate limit reached. Please wait a moment and try again.",
-  ) {
-    super(message);
+  constructor(message?: string) {
+    super(message ?? vi.errors.rateLimit);
     this.name = "RateLimitError";
   }
 }

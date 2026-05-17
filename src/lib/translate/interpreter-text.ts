@@ -1,12 +1,13 @@
 import { RateLimitError } from "@/lib/errors/rate-limit-error";
 import { vi } from "@/lib/i18n/vi";
-import { isChineseLanguage } from "@/lib/speech/languages";
-import type { TranslateErrorResponse, TranslationResult } from "@/types/translate";
-
 import {
-  extractStreamingDisplay,
-  parseStreamedTranslation,
-} from "./stream-display";
+  extractInterpreterStreamDisplay,
+  parseInterpreterResponse,
+} from "@/lib/gemini/parse-interpreter-response";
+import type {
+  InterpreterResult,
+  TranslateErrorResponse,
+} from "@/types/translate";
 
 const MAX_RETRIES = 3;
 const BASE_RETRY_MS = 2000;
@@ -17,36 +18,30 @@ function delay(ms: number): Promise<void> {
   });
 }
 
-export interface TranslateTextOptions {
+export interface InterpreterTextOptions {
   signal?: AbortSignal;
-  targetLanguageCode: string;
+  languageACode: string;
+  languageBCode: string;
   onRetry?: (attempt: number, delayMs: number) => void;
-  onStreamUpdate?: (display: TranslationResult) => void;
+  onStreamUpdate?: (display: InterpreterResult) => void;
 }
 
-export async function translateText(
+export async function interpreterText(
   text: string,
-  sourceLanguage: string,
-  targetLanguage: string,
-  options: TranslateTextOptions,
-): Promise<TranslationResult> {
-  const { signal, targetLanguageCode, onRetry, onStreamUpdate } = options;
-  const expectsChineseJson = isChineseLanguage(targetLanguageCode);
+  options: InterpreterTextOptions,
+): Promise<InterpreterResult> {
+  const { signal, languageACode, languageBCode, onRetry, onStreamUpdate } =
+    options;
 
   try {
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       let response: Response;
 
       try {
-        response = await fetch("/api/translate", {
+        response = await fetch("/api/interpreter", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            text,
-            sourceLanguage,
-            targetLanguage,
-            targetLanguageCode,
-          }),
+          body: JSON.stringify({ text, languageACode, languageBCode }),
           signal,
         });
       } catch (error) {
@@ -54,7 +49,7 @@ export async function translateText(
           throw error;
         }
 
-        throw new Error(vi.errors.network);
+        throw new Error(vi.errors.networkInterpreter);
       }
 
       if (response.status === 429) {
@@ -65,11 +60,11 @@ export async function translateText(
           continue;
         }
 
-        throw new RateLimitError(vi.errors.rateLimitGemini);
+        throw new RateLimitError(vi.errors.rateLimit);
       }
 
       if (!response.ok) {
-        let message: string = vi.errors.translationGeneric;
+        let message: string = vi.errors.interpreterGeneric;
 
         try {
           const body = (await response.json()) as TranslateErrorResponse;
@@ -77,7 +72,7 @@ export async function translateText(
             message = body.error;
           }
         } catch {
-          // keep default message
+          // keep default
         }
 
         throw new Error(message);
@@ -102,13 +97,15 @@ export async function translateText(
 
           accumulated += decoder.decode(value, { stream: true });
 
-          const display = extractStreamingDisplay(
+          const display = extractInterpreterStreamDisplay(
             accumulated,
-            expectsChineseJson,
+            languageACode,
+            languageBCode,
           );
 
           if (display.translation.trim() || display.pinyin) {
             onStreamUpdate?.({
+              detectedLanguageCode: display.detectedLanguageCode,
               translation: display.translation.trim(),
               pinyin: display.pinyin,
             });
@@ -117,43 +114,22 @@ export async function translateText(
 
         accumulated += decoder.decode();
 
-        let finalResult = parseStreamedTranslation(
+        const finalResult = parseInterpreterResponse(
           accumulated,
-          expectsChineseJson,
+          languageACode,
+          languageBCode,
         );
-
-        if (
-          !finalResult.translation?.trim() &&
-          accumulated.trim() &&
-          expectsChineseJson
-        ) {
-          finalResult = parseStreamedTranslation(accumulated, false);
-        }
 
         if (!finalResult.translation?.trim()) {
           throw new Error(
             accumulated.trim()
-              ? vi.errors.parseTranslation
+              ? vi.errors.parseInterpreter
               : vi.errors.emptyTranslation,
           );
         }
 
-        if (
-          expectsChineseJson &&
-          finalResult.translation.trim().startsWith("{") &&
-          finalResult.translation.includes('"translation"')
-        ) {
-          const reparsed = parseStreamedTranslation(
-            finalResult.translation,
-            true,
-          );
-
-          if (reparsed.translation?.trim()) {
-            finalResult = reparsed;
-          }
-        }
-
         return {
+          detectedLanguageCode: finalResult.detectedLanguageCode,
           translation: finalResult.translation.trim(),
           pinyin: finalResult.pinyin?.trim() || undefined,
         };
@@ -168,6 +144,6 @@ export async function translateText(
       throw error;
     }
 
-    throw new Error(vi.errors.translationFailed);
+    throw new Error(vi.errors.interpreterFailed);
   }
 }

@@ -1,3 +1,4 @@
+import { vi } from "@/lib/i18n/vi";
 import type { AppListeningState } from "@/types/speech";
 import type { PipelineState } from "@/types/translator";
 
@@ -9,10 +10,10 @@ interface StatusBadgeProps {
 type DisplayStatus = AppListeningState | PipelineState;
 
 const STATUS_COPY: Record<DisplayStatus, string> = {
-  idle: "Tap the mic to start",
-  listening: "Recording… Tap mic when done",
-  processing: "Translating…",
-  speaking: "Playing translation…",
+  idle: vi.status.idle,
+  listening: vi.status.listening,
+  processing: vi.status.processing,
+  speaking: vi.status.speaking,
 };
 
 const STATUS_COLOR: Record<DisplayStatus, string> = {

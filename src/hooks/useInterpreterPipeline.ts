@@ -3,25 +3,26 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { ToastVariant } from "@/hooks/useToast";
+import { getTargetCode } from "@/lib/gemini/interpreter-prompt";
 import { RateLimitError } from "@/lib/errors/rate-limit-error";
 import { vi } from "@/lib/i18n/vi";
+import { getLanguageByCode } from "@/lib/speech/languages";
 import {
   cancelNeuralSpeech,
   playNeuralTts,
 } from "@/lib/speech/play-neural-tts";
 import { isValidTranscript } from "@/lib/translate/is-valid-transcript";
-import { translateText } from "@/lib/translate/translate-text";
+import { interpreterText } from "@/lib/translate/interpreter-text";
 import type { ConversationEntry, PipelineState } from "@/types/translator";
 
-export interface UseTranslationPipelineOptions {
-  sourceLanguage: string;
-  targetLanguage: string;
-  targetLanguageCode: string;
-  neuralVoice: string;
+export interface UseInterpreterPipelineOptions {
+  languageACode: string;
+  languageBCode: string;
   showToast: (message: string, variant?: ToastVariant) => void;
+  onDetectedLanguage?: (code: string) => void;
 }
 
-export interface UseTranslationPipelineReturn {
+export interface UseInterpreterPipelineReturn {
   pipelineState: PipelineState;
   history: ConversationEntry[];
   handleFinalTranscript: (text: string) => void;
@@ -29,9 +30,15 @@ export interface UseTranslationPipelineReturn {
   cancelSpeech: () => void;
 }
 
-export function useTranslationPipeline(
-  options: UseTranslationPipelineOptions,
-): UseTranslationPipelineReturn {
+function buildDirectionLabel(detectedCode: string, targetCode: string): string {
+  const detected = getLanguageByCode(detectedCode);
+  const target = getLanguageByCode(targetCode);
+  return `${detected.label} → ${target.label}`;
+}
+
+export function useInterpreterPipeline(
+  options: UseInterpreterPipelineOptions,
+): UseInterpreterPipelineReturn {
   const [pipelineState, setPipelineState] = useState<PipelineState>("idle");
   const [history, setHistory] = useState<ConversationEntry[]>([]);
 
@@ -57,13 +64,8 @@ export function useTranslationPipeline(
       return;
     }
 
-    const {
-      sourceLanguage: sourceLang,
-      targetLanguage: targetLang,
-      targetLanguageCode,
-      neuralVoice,
-      showToast,
-    } = optionsRef.current;
+    const { languageACode, languageBCode, showToast, onDetectedLanguage } =
+      optionsRef.current;
 
     const entryId = crypto.randomUUID();
     const requestId = ++requestIdRef.current;
@@ -72,7 +74,7 @@ export function useTranslationPipeline(
     try {
       cancelNeuralSpeech();
     } catch {
-      // ignore cancel errors
+      // ignore
     }
 
     setPipelineState("processing");
@@ -89,8 +91,9 @@ export function useTranslationPipeline(
 
     void (async () => {
       try {
-        const result = await translateText(text, sourceLang, targetLang, {
-          targetLanguageCode,
+        const result = await interpreterText(text, {
+          languageACode,
+          languageBCode,
           onRetry: (_attempt, delayMs) => {
             const seconds = Math.round(delayMs / 1000);
             showToast(vi.toast.retryIn(seconds), "warning");
@@ -100,9 +103,26 @@ export function useTranslationPipeline(
               return;
             }
 
+            const targetCode = getTargetCode(
+              display.detectedLanguageCode,
+              languageACode,
+              languageBCode,
+            );
+
             updateEntry(entryId, {
               translatedText: display.translation,
               pinyin: display.pinyin,
+              detectedLanguageCode: display.detectedLanguageCode,
+              targetLanguageCode: targetCode,
+              directionLabel: buildDirectionLabel(
+                display.detectedLanguageCode,
+                targetCode,
+              ),
+              detectedLabel: getLanguageByCode(
+                display.detectedLanguageCode,
+              ).label,
+              targetLabel: getLanguageByCode(targetCode).label,
+              targetNeuralVoice: getLanguageByCode(targetCode).neuralVoice,
               status: "translating",
             });
           },
@@ -118,16 +138,34 @@ export function useTranslationPipeline(
           throw new Error(vi.errors.emptyTranslation);
         }
 
+        const targetCode = getTargetCode(
+          result.detectedLanguageCode,
+          languageACode,
+          languageBCode,
+        );
+        const targetLang = getLanguageByCode(targetCode);
+
         updateEntry(entryId, {
           translatedText: translation,
           pinyin: result.pinyin,
+          detectedLanguageCode: result.detectedLanguageCode,
+          targetLanguageCode: targetCode,
+          directionLabel: buildDirectionLabel(
+            result.detectedLanguageCode,
+            targetCode,
+          ),
+          detectedLabel: getLanguageByCode(result.detectedLanguageCode).label,
+          targetLabel: targetLang.label,
+          targetNeuralVoice: targetLang.neuralVoice,
           status: "complete",
         });
+
+        onDetectedLanguage?.(result.detectedLanguageCode);
 
         setPipelineState("speaking");
 
         try {
-          await playNeuralTts(translation, neuralVoice);
+          await playNeuralTts(translation, targetLang.neuralVoice);
         } catch (error) {
           const message =
             error instanceof Error
@@ -152,7 +190,7 @@ export function useTranslationPipeline(
         const message =
           error instanceof Error
             ? error.message
-            : vi.errors.translationFailed;
+            : vi.errors.interpreterFailed;
 
         updateEntry(entryId, {
           status: "error",

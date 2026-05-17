@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 
+import { vi } from "@/lib/i18n/vi";
 import {
   cancelNeuralSpeech,
   playNeuralTts,
@@ -34,7 +35,7 @@ export function PlaySpeechButton({
       const message =
         error instanceof Error
           ? error.message
-          : "Could not play audio for this message.";
+          : vi.playback.playFailed;
       onError?.(message);
     } finally {
       setIsPlaying(false);
@@ -55,7 +56,7 @@ export function PlaySpeechButton({
       type="button"
       onClick={isPlaying ? handleStop : handlePlay}
       disabled={!text.trim()}
-      aria-label={isPlaying ? "Stop playback" : "Play translation"}
+      aria-label={isPlaying ? vi.playback.stop : vi.playback.play}
       className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-violet-200 bg-white text-violet-600 shadow-sm transition-colors hover:bg-violet-50 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
     >
       {isPlaying ? (

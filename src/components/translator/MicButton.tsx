@@ -1,3 +1,4 @@
+import { vi } from "@/lib/i18n/vi";
 import type { AppListeningState } from "@/types/speech";
 
 interface MicButtonProps {
@@ -19,7 +20,7 @@ export function MicButton({
       onClick={onClick}
       disabled={disabled}
       aria-pressed={isListening}
-      aria-label={isListening ? "Stop listening" : "Start listening"}
+      aria-label={isListening ? vi.mic.stop : vi.mic.start}
       className={`group relative flex h-20 w-20 items-center justify-center rounded-full bg-zinc-900 text-white shadow-lg transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 ${
         isListening ? "animate-mic-glow" : ""
       }`}

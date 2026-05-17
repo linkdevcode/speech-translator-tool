@@ -3,38 +3,38 @@ import type { LanguageOption } from "@/types/speech";
 
 import { LanguagePicker } from "./LanguagePicker";
 
-interface LanguageBarProps {
-  source: LanguageOption;
-  target: LanguageOption;
-  sourceCode: string;
-  targetCode: string;
-  onSourceChange: (code: string) => void;
-  onTargetChange: (code: string) => void;
+interface LanguagePairBarProps {
+  languageA: LanguageOption;
+  languageB: LanguageOption;
+  languageACode: string;
+  languageBCode: string;
+  onLanguageAChange: (code: string) => void;
+  onLanguageBChange: (code: string) => void;
   onSwap: () => void;
 }
 
-export function LanguageBar({
-  source,
-  target,
-  sourceCode,
-  targetCode,
-  onSourceChange,
-  onTargetChange,
+export function LanguagePairBar({
+  languageA,
+  languageB,
+  languageACode,
+  languageBCode,
+  onLanguageAChange,
+  onLanguageBChange,
   onSwap,
-}: LanguageBarProps) {
+}: LanguagePairBarProps) {
   return (
     <div className="flex items-center gap-2 rounded-2xl border border-zinc-200 bg-zinc-50 p-3">
-      <LanguageSelect
-        label={vi.language.from}
-        value={sourceCode}
-        selected={source}
-        onChange={onSourceChange}
-        excludeCode={targetCode}
+      <PairSelect
+        label={vi.language.languageA}
+        value={languageACode}
+        selected={languageA}
+        onChange={onLanguageAChange}
+        excludeCode={languageBCode}
       />
       <button
         type="button"
         onClick={onSwap}
-        aria-label={vi.language.swap}
+        aria-label={vi.language.swapPair}
         className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-700 transition-colors hover:bg-zinc-100 active:scale-95"
       >
         <svg
@@ -51,18 +51,18 @@ export function LanguageBar({
           <path d="M17 8v12m0 0 4-4m-4 4-4-4" />
         </svg>
       </button>
-      <LanguageSelect
-        label={vi.language.to}
-        value={targetCode}
-        selected={target}
-        onChange={onTargetChange}
-        excludeCode={sourceCode}
+      <PairSelect
+        label={vi.language.languageB}
+        value={languageBCode}
+        selected={languageB}
+        onChange={onLanguageBChange}
+        excludeCode={languageACode}
       />
     </div>
   );
 }
 
-function LanguageSelect({
+function PairSelect({
   label,
   value,
   selected,

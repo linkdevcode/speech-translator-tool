@@ -18,3 +18,15 @@ export interface TranslationResult {
   translation: string;
   pinyin?: string;
 }
+
+export interface InterpreterRequestBody {
+  text: string;
+  languageACode: string;
+  languageBCode: string;
+}
+
+export interface InterpreterResult {
+  detectedLanguageCode: string;
+  translation: string;
+  pinyin?: string;
+}

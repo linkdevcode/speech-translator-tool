@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+
+import { vi } from "@/lib/i18n/vi";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -13,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Real-time Voice Translator",
-  description: "Bi-directional voice translation with browser-native speech APIs",
+  title: vi.meta.title,
+  description: vi.meta.description,
 };
 
 export default function RootLayout({
@@ -24,7 +26,7 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
+      lang="vi"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       style={{ colorScheme: "light" }}
     >

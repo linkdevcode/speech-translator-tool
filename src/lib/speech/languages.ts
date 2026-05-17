@@ -22,7 +22,7 @@ export const LANGUAGES: LanguageOption[] = [
     apiLanguageName: "Simplified Chinese (Mainland, zh-CN)",
     neuralVoice: "zh-CN-XiaoxiaoNeural",
     chineseVariant: "simplified",
-    romanizationLabel: "Pinyin",
+    romanizationLabel: "Phiên âm",
   },
   {
     code: "zh-TW",
@@ -31,7 +31,7 @@ export const LANGUAGES: LanguageOption[] = [
     apiLanguageName: "Traditional Chinese (Taiwan, zh-TW)",
     neuralVoice: "zh-TW-HsiaoChenNeural",
     chineseVariant: "traditional",
-    romanizationLabel: "Pinyin",
+    romanizationLabel: "Phiên âm",
   },
   {
     code: "zh-HK",

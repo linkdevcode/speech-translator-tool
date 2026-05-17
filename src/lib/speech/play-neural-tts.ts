@@ -1,3 +1,4 @@
+import { vi } from "@/lib/i18n/vi";
 import {
   getSharedAudioElement,
   unlockIosAudioPlayback,
@@ -52,7 +53,7 @@ export async function playNeuralTts(
     });
 
     if (!response.ok) {
-      let message = "Neural speech playback failed";
+      let message: string = vi.playback.translatedAudioFailed;
 
       try {
         const body = (await response.json()) as { error?: string };
@@ -87,7 +88,7 @@ export async function playNeuralTts(
 
       audio.onerror = () => {
         cleanup();
-        reject(new Error("Neural audio playback failed on this device."));
+        reject(new Error(vi.errors.neuralPlayback));
       };
 
       void audio.play().catch((error: unknown) => {
@@ -96,7 +97,7 @@ export async function playNeuralTts(
           reject(error);
           return;
         }
-        reject(new Error("Could not start audio playback."));
+        reject(new Error(vi.errors.playbackStart));
       });
     });
   } catch (error) {
@@ -104,6 +105,6 @@ export async function playNeuralTts(
       throw error;
     }
 
-    throw new Error("Neural speech playback could not be started.");
+    throw new Error(vi.errors.neuralPlayback);
   }
 }

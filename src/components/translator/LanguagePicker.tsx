@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useState } from "react";
 import { createPortal } from "react-dom";
 
+import { vi } from "@/lib/i18n/vi";
 import { LANGUAGES } from "@/lib/speech/languages";
 import type { LanguageOption } from "@/types/speech";
 
@@ -67,7 +68,7 @@ export function LanguagePicker({
           <>
             <button
               type="button"
-              aria-label="Close language menu"
+              aria-label={vi.language.closeMenu}
               className="fixed inset-0 z-[100] bg-zinc-900/40"
               onClick={() => setOpen(false)}
             />
@@ -88,13 +89,13 @@ export function LanguagePicker({
                   id={listId}
                   className="text-xs font-semibold uppercase tracking-wide text-zinc-400"
                 >
-                  {label} language
+                  {vi.language.pickerLabel(label)}
                 </p>
               </div>
               <ul
                 className="max-h-[min(55dvh,340px)] overflow-y-auto overscroll-contain px-2 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]"
                 role="listbox"
-                aria-label={`${label} language`}
+                aria-label={vi.language.pickerLabel(label)}
               >
                 {options.map((lang) => {
                   const isSelected = lang.code === value;
@@ -151,7 +152,7 @@ export function LanguagePicker({
         type="button"
         aria-haspopup="listbox"
         aria-expanded={open}
-        aria-label={`${label} language: ${selected.label}`}
+        aria-label={`${vi.language.pickerLabel(label)}: ${selected.label}`}
         onClick={() => setOpen(true)}
         className="w-full truncate rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-left text-sm font-semibold text-zinc-900 shadow-sm outline-none ring-violet-400 focus-visible:ring-2 active:bg-zinc-50"
       >

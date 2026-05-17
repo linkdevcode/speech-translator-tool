@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef } from "react";
 
 import { LoadingDots } from "@/components/ui/LoadingDots";
 import { PlaySpeechButton } from "@/components/translator/PlaySpeechButton";
+import { vi } from "@/lib/i18n/vi";
+import { getRomanizationLabel } from "@/lib/speech/languages";
 import type { ConversationEntry } from "@/types/translator";
 
 interface ChatTranscriptProps {
@@ -12,6 +14,7 @@ interface ChatTranscriptProps {
   targetLabel: string;
   neuralVoice: string;
   romanizationLabel?: string;
+  interpreterMode?: boolean;
   onPlaybackError?: (message: string) => void;
   className?: string;
 }
@@ -22,6 +25,7 @@ export function ChatTranscript({
   targetLabel,
   neuralVoice,
   romanizationLabel,
+  interpreterMode = false,
   onPlaybackError,
   className = "",
 }: ChatTranscriptProps) {
@@ -33,7 +37,7 @@ export function ChatTranscript({
       entries
         .map(
           (entry) =>
-            `${entry.id}:${entry.status}:${entry.sourceText}:${entry.translatedText}:${entry.pinyin ?? ""}`,
+            `${entry.id}:${entry.status}:${entry.sourceText}:${entry.translatedText}:${entry.pinyin ?? ""}:${entry.directionLabel ?? ""}`,
         )
         .join("|"),
     [entries],
@@ -61,11 +65,12 @@ export function ChatTranscript({
         className={`flex min-h-[8rem] flex-col rounded-2xl border border-dashed border-zinc-200 bg-white/80 p-5 ${className}`}
       >
         <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
-          Conversation
+          {vi.conversation.title}
         </h2>
         <p className="mt-auto text-sm leading-relaxed text-zinc-400">
-          Your dialogue will appear here as chat bubbles — original on the right,
-          translation on the left.
+          {interpreterMode
+            ? vi.conversation.emptyInterpreter
+            : vi.conversation.emptyClassic}
         </p>
       </section>
     );
@@ -77,13 +82,14 @@ export function ChatTranscript({
     >
       <div className="shrink-0 border-b border-zinc-100 px-4 py-2.5">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
-          Conversation
+          {vi.conversation.title}
         </h2>
       </div>
 
-      <div         ref={scrollContainerRef}
+      <div
+        ref={scrollContainerRef}
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pt-3 pb-2"
-        aria-label="Conversation messages"
+        aria-label={vi.conversation.ariaMessages}
       >
         <div className="flex flex-col gap-4 pb-3">
           {entries.map((entry) => (
@@ -94,6 +100,7 @@ export function ChatTranscript({
               targetLabel={targetLabel}
               neuralVoice={neuralVoice}
               romanizationLabel={romanizationLabel}
+              interpreterMode={interpreterMode}
               onPlaybackError={onPlaybackError}
             />
           ))}
@@ -110,6 +117,7 @@ function ChatTurn({
   targetLabel,
   neuralVoice,
   romanizationLabel,
+  interpreterMode,
   onPlaybackError,
 }: {
   entry: ConversationEntry;
@@ -117,29 +125,46 @@ function ChatTurn({
   targetLabel: string;
   neuralVoice: string;
   romanizationLabel?: string;
+  interpreterMode: boolean;
   onPlaybackError?: (message: string) => void;
 }) {
+  const turnSourceLabel =
+    interpreterMode && entry.detectedLabel ? entry.detectedLabel : sourceLabel;
+  const turnTargetLabel =
+    interpreterMode && entry.targetLabel ? entry.targetLabel : targetLabel;
+  const turnVoice = entry.targetNeuralVoice ?? neuralVoice;
+  const turnRomanizationLabel =
+    interpreterMode && entry.targetLanguageCode
+      ? getRomanizationLabel(entry.targetLanguageCode)
+      : romanizationLabel;
+
   return (
     <article className="flex flex-col gap-2">
-      <SourceBubble label={sourceLabel} text={entry.sourceText} />
+      {interpreterMode && entry.directionLabel ? (
+        <p className="text-center text-[10px] font-medium tracking-wide text-zinc-400">
+          {entry.directionLabel}
+        </p>
+      ) : null}
+
+      <SourceBubble label={turnSourceLabel} text={entry.sourceText} />
 
       {entry.status === "translating" ? (
         <TargetBubble
-          label={targetLabel}
+          label={turnTargetLabel}
           text={entry.translatedText}
           pinyin={entry.pinyin}
           isStreaming
-          romanizationLabel={romanizationLabel}
+          romanizationLabel={turnRomanizationLabel}
         />
       ) : null}
 
       {entry.status === "complete" && entry.translatedText ? (
         <TargetBubble
-          label={targetLabel}
+          label={turnTargetLabel}
           text={entry.translatedText}
           pinyin={entry.pinyin}
-          romanizationLabel={romanizationLabel}
-          neuralVoice={neuralVoice}
+          romanizationLabel={turnRomanizationLabel}
+          neuralVoice={turnVoice}
           onPlaybackError={onPlaybackError}
         />
       ) : null}
@@ -147,7 +172,7 @@ function ChatTurn({
       {entry.status === "error" ? (
         <div className="flex justify-start">
           <p className="max-w-[85%] rounded-2xl rounded-bl-md border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-800">
-            {entry.errorMessage ?? "Translation failed."}
+            {entry.errorMessage ?? vi.conversation.failed}
           </p>
         </div>
       ) : null}
@@ -203,7 +228,7 @@ function TargetBubble({
       </div>
       <div className="w-full max-w-[88%] rounded-2xl rounded-bl-md border border-violet-100 bg-violet-50 px-4 py-2.5 text-sm leading-relaxed text-violet-950 shadow-sm">
         {isStreaming && !text ? (
-          <LoadingDots label="Translating…" size="sm" className="text-violet-600" />
+          <LoadingDots label={vi.status.processing} size="sm" className="text-violet-600" />
         ) : null}
 
         {text ? (
@@ -219,7 +244,7 @@ function TargetBubble({
         ) : null}
 
         {isLoading && !isStreaming ? (
-          <LoadingDots label="Translating…" size="sm" className="text-violet-600" />
+          <LoadingDots label={vi.status.processing} size="sm" className="text-violet-600" />
         ) : null}
 
         {pinyin ? (
